@@ -817,17 +817,65 @@ Key learnings:
 ---
 
 ### Phase 8 — FastAPI Backend
-**Status:** PENDING
+**Status:** COMPLETE | **Date:** 2026-03-29
 
-ML concept to encounter: model serving, artifact management, inference pipeline
-design, candidate generation at request time
+**ML concept encountered:** Model serving, stateless vs stateful inference,
+session-based cold-start handling, inference pipeline latency tradeoffs
+
+Files: backend/main.py, model_loader.py, inference.py,
+       routes/{recommendations,search,insights}.py
+
+Endpoints:
+  POST /onboard                   — cold-start session from initial ratings
+  GET  /session/{session_id}      — content-based recs for new users
+  GET  /recommendations/{user_id} — full hybrid pipeline for known users
+  GET  /search                    — title search + optional personalized rerank
+  GET  /item/{movie_id}           — movie metadata
+  GET  /movies                    — paginated movie list for onboarding UI
+  GET  /metrics                   — precomputed model comparison JSON
+  GET  /insights                  — structured narrative data for insights page
+
+Key learnings:
+- Model loading happens ONCE at startup (AppState singleton). Routes import
+  shared state — no per-request deserialization overhead.
+- Cold-start (session users) handled by skipping CF entirely and using
+  content-based genre profile + reranker with cf_score=0.
+- Explanation tags generated from feature signals: CF score threshold,
+  genre overlap match, popularity level, content similarity.
+- /insights endpoint serves fully structured data (key findings, tradeoffs,
+  feature importance, failure rate) — decouples narrative from frontend logic.
+
+Start server: uvicorn backend.main:app --reload --port 8000
 
 ---
 
 ### Phase 9 — React Frontend
-**Status:** PENDING
+**Status:** COMPLETE | **Date:** 2026-03-29
 
-Pages: Onboarding | Recommendations | Search | Insights (model analysis)
+Tech: React + Vite, TailwindCSS v4, Recharts, React Router, Axios
+Fonts: Syne (headings, bold + geometric) + DM Sans (body, clean)
+Color: #07070f bg, electric blue/purple/gold accents, cinematic dark theme
+
+Pages:
+- /onboard       — movie grid with genre filter chips, toggle-select rating,
+                   sticky CTA that calls POST /onboard → stores session_id
+- /recommendations — Netflix-style hero card + horizontal scroll row,
+                     model selector (Hybrid/CF/Popularity), explanation badges
+- /search        — centered search with animated underline, match+personalization
+                   score bars, toggle for personalized reranking
+- /insights      — full ML experiment writeup: dataset stats hero, model
+                   comparison table (gold highlights for best values), grouped
+                   bar charts (NDCG/Recall by model + cold/warm/hot segments),
+                   feature importance bars, key findings grid, tradeoffs,
+                   future work list
+
+Design decisions:
+- Genre-derived gradient posters (no real images needed — colors from genres)
+- Explanation badges color-coded: blue=similar taste, purple=genre match,
+  gold=hidden gem, gray=popular
+- Insights page styled as a portfolio/technical writeup, not a dashboard
+- CSS fade-up + shimmer skeleton loading for all async states
+- Build passes cleanly (639 modules, 200KB gzip)
 
 ---
 
