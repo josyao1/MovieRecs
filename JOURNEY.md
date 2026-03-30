@@ -14,112 +14,563 @@ Movies are the domain. ML in production is the subject.
 
 ## ML Concepts Reference
 
-Concepts encountered across this project, explained in context.
+Every concept encountered in this project, explained from first principles.
+Written to be read linearly — each section builds on the previous ones.
 
-### Sparsity
-The user-item interaction matrix has 6,040 users × 3,706 movies = ~22M possible
-pairs. Only ~1M are observed (4.5%). The other 95.5% are unknown — we don't know
-if the user would like those movies; they just haven't rated them.
+---
 
-This is the fundamental challenge of recommendation. Every model in this project
-is essentially trying to fill in that sparse matrix intelligently.
+### 1. The Recommendation Problem
 
-### Selection Bias in Ratings
-Users don't rate movies randomly — they rate movies they chose to watch, and they
-chose to watch movies they expected to enjoy. So the observed ratings skew high
-(mean 3.58 in this dataset). This means ratings are NOT a representative sample
-of true preferences. A 1-star rating still means the user engaged. This is why
-we treat ratings as implicit confidence signals rather than exact target values.
+At its core, recommendation is a prediction problem: given what a user has done
+in the past, predict what they will want in the future.
 
-### The Ranking Problem
-This is NOT a rating prediction task. We don't need to predict exact star ratings.
-We need to produce a ranked list where the most relevant items appear at the top.
-The difference matters: a model could have terrible MSE on rating prediction but
-still produce an excellent top-10 ranking, and vice versa.
+The naive framing is "predict ratings" — train a model to guess that user A would
+give movie X a 4.2/5. But this is the wrong framing. Nobody cares about the exact
+predicted star rating. What matters is: which 10 movies should we show this user
+right now, ordered so the best ones come first?
 
-### Precision@K, Recall@K, NDCG@K
-Standard ranking metrics, all computed at cutoff K=10:
+This reframes the problem as a **ranking** problem, not a regression problem.
+That distinction shapes every modeling and evaluation decision in this project.
 
-- Precision@K: of the K items we recommend, what fraction were actually relevant?
-  Measures: are our recommendations good?
+---
 
-- Recall@K: of all items the user would have liked (in the test set), what fraction
-  did we surface in our top K?
-  Measures: how much relevant content did we find?
+### 2. Sparsity — Why Recommendation is Hard
 
-- NDCG@K (Normalized Discounted Cumulative Gain): like precision, but rewards
-  placing relevant items *higher* in the ranking. Recommending a relevant item at
-  position 1 is worth more than at position 10. This is the most important metric
-  for a ranked system.
+Imagine a spreadsheet: rows are users, columns are movies, cells are ratings.
+In theory this is 6,040 × 3,706 = 22.4 million cells. In practice, only ~1 million
+cells have values. The other 95.5% are empty.
 
-The tension between precision and recall: a model can boost recall by recommending
-more broadly (but precision drops). A model can boost precision by only recommending
-sure things (but recall drops). NDCG captures whether we're putting the right things
-first.
+That 95.5% is called **sparsity**. But here's the thing — empty doesn't mean the
+user dislikes the movie. It means they haven't seen it, or they saw it but didn't
+rate it. The emptiness is informative ambiguity, not a signal of dislike.
 
-### Time-Aware Splitting
-Recommendation is a future-prediction task: given past behavior, predict future
-preferences. If we split randomly, future ratings leak into the training set, which
-inflates metrics artificially. A time-aware split ensures the model only ever sees
-the past when predicting the future.
+This creates the central difficulty: you are trying to learn patterns from a matrix
+that is almost entirely missing. Every model in this project is a different strategy
+for extrapolating intelligently from those ~1 million observed cells to make
+predictions about the ~21 million unobserved ones.
 
-### Popularity Bias
-Models trained on interaction data inherit the biases of that data. Popular items
-have more training signal (more ratings, stronger gradients), so models tend to
-over-recommend them. This hurts personalization: a system that just recommends
-whatever's popular is not useful to users with niche tastes.
+Why is sparsity worse for some users?
+- A user with 500 ratings gives the model a lot to work with. It can learn their
+  preferences across many genres, eras, directors.
+- A user with 5 ratings gives the model almost nothing. Their preferences are
+  barely defined. This is the **cold-start problem** (covered below).
 
-### Matrix Factorization (Collaborative Filtering)
-The key idea: decompose the sparse user-item matrix into two dense, low-rank matrices:
-  Users (N × d) × Items (d × M) ≈ Ratings (N × M)
+---
 
-Each user gets a d-dimensional latent vector. Each item gets a d-dimensional latent
-vector. The relevance score for a user-item pair is their dot product. Training
-adjusts these vectors so dot products are high for observed positive interactions.
+### 3. Selection Bias — Why Ratings Are a Distorted Signal
 
-The d dimensions are latent — you don't define them. The model discovers structure
-from patterns. One dimension might loosely encode "preference for 1980s action films",
-another "preference for slow character studies". This is learned entirely from
-who-rated-what.
+In an ideal world, ratings would be a random sample of a user's true preferences
+across all movies. They're not.
 
-### Implicit vs Explicit Feedback
-Explicit: user directly rates an item (stars, thumbs).
-Implicit: user behavior inferred as signal (clicks, watches, ratings treated as
-  confidence weights rather than exact targets).
+People rate movies they chose to watch. They chose to watch movies they expected
+to like. So the observed distribution of ratings skews positive (mean 3.58 here,
+where 3 = "neutral"). This is called **selection bias** — the sample you observe
+is not representative of the underlying population.
 
-We use implicit ALS (Alternating Least Squares), which treats rating value as a
-confidence weight: a 5-star rating is high-confidence positive; a 1-star is
-low-confidence positive (user engaged but didn't love it). This avoids treating
-low ratings as "negatives" when we don't have true negatives.
+Concrete implication: if you train a model to predict ratings and evaluate it on
+MSE (mean squared error), you are optimizing for a biased signal. A model that
+learns "users generally give 3.5-4 stars" will have low MSE on the observed data
+but will tell you nothing about which movies a user would actually prefer.
 
-### Content-Based Filtering
-Instead of learning from who-liked-what, represent items by their attributes
-(genre, description, tags) and build a user profile by averaging the attribute
-vectors of their liked items. Recommend items whose attributes are closest to
-the user's profile (cosine similarity).
+How we handle it: we treat ratings not as exact targets to predict, but as
+**confidence weights**. A 5-star rating = strong evidence the user liked this
+kind of content. A 1-star rating = the user engaged with the movie (that's signal)
+even if they disliked it. We never treat unrated movies as negative — we just
+don't know.
 
-Strength: works without any interaction data — useful for new users or new items.
-Weakness: limited by the quality and expressiveness of item features.
+---
 
-### Hybrid Reranking (Two-Stage Pipeline)
-Stage 1 — Candidate Generation: fast, recall-oriented retrieval. Generate a pool
-of ~100 candidate items per user from CF + content-based. Priority is to not miss
-relevant items.
+### 4. Implicit vs Explicit Feedback
 
-Stage 2 — Reranking: a learned model takes each (user, candidate) pair, computes
-rich features from multiple signals (CF score, content score, popularity, recency,
-genre overlap, etc.), and produces a final relevance score. Priority is precision
-and correct ordering.
+**Explicit feedback**: the user deliberately tells you their preference.
+  Examples: 5-star rating, thumbs up/down, "not interested" button.
 
-This separation is used in every major production recommendation system because
-it balances speed (cheap retrieval over millions of items) with quality (expensive
-scoring over a small candidate set).
+**Implicit feedback**: user behavior you interpret as a preference signal.
+  Examples: watch history, clicks, saves, replays, skips.
 
-### LightGBM (Gradient Boosted Trees for Ranking)
-LightGBM with objective='lambdarank' trains a gradient boosted decision tree to
-optimize NDCG directly. It takes the engineered feature table and learns which
-combinations of features best predict relevance. Feature importance from GBDT
-tells us which signals matter most — this is directly interpretable.
+The distinction matters because most real-world systems are dominated by implicit
+feedback. In Netflix's case, they have billions of plays but relatively few
+explicit ratings. Ratings are expensive (users have to take action); behavior is
+free (it just happens).
+
+For MovieLens, we have explicit ratings but we treat them as implicit. Why?
+Because of selection bias above — the rating value is noisy and biased. Instead
+we use:
+  confidence = 1 + α × rating
+
+A 5-star rating → high-confidence observation. A 1-star → lower-confidence but
+still a positive observation (the user engaged). α=40 is a standard scaling
+parameter. This converts a 5-star rating into confidence=201 and a 1-star into
+confidence=41 — same sign, very different weight.
+
+The ALS model uses these confidence weights during training, not the raw ratings.
+
+---
+
+### 5. Data Splitting — Why Random Splits Are Wrong for Recommendation
+
+In standard ML (say, image classification), splitting data randomly into
+train/val/test is fine. Each image is independent. Training on 80% and testing
+on 20% is representative.
+
+Recommendation is different. **User interactions are ordered in time.** Rating
+Inception in 2002 and rating Interstellar in 2010 are not interchangeable events.
+The earlier rating is part of the user's history that should *inform* predictions
+about later preferences.
+
+If you split randomly:
+- Some of the user's 2010 ratings land in the training set.
+- You train the model on data that includes future behavior.
+- At test time, you ask "would this user like X?" but the model already "saw" their
+  future interactions during training.
+- This is **data leakage**. Metrics will be optimistically inflated.
+
+The fix is a **time-aware split**: for each user independently, sort interactions
+by timestamp, then take the first 80% for training, next 10% for validation, last
+10% for test. This way, every test interaction genuinely came after all training
+interactions for that user — exactly the real-world scenario.
+
+---
+
+### 6. Evaluation Metrics — Measuring Ranking Quality
+
+All three metrics are computed at cutoff K=10 (we evaluate the top 10 recommendations).
+
+**Precision@K**
+Of the K items we recommended, what fraction were actually relevant?
+  P@10 = (# of relevant items in top 10) / 10
+
+Relevant = movie the user rated ≥ 4 stars in the test set.
+
+Example: if 2 of our 10 recommendations are in the user's test set → P@10 = 0.2
+Interpretation: "20% of what we showed you was actually good."
+
+**Recall@K**
+Of all relevant items in the test set, what fraction did we surface?
+  R@10 = (# of relevant items in top 10) / (total relevant items)
+
+Example: user has 5 relevant test movies, we found 2 of them → R@10 = 0.4
+Interpretation: "We found 40% of what would have been good for you."
+
+**The precision-recall tradeoff**
+These two metrics pull in opposite directions. Imagine you're allowed to recommend
+100 movies instead of 10. Your recall goes up (more chances to hit relevant items),
+but your precision drops (you're including more guesses). There's a fundamental
+tradeoff — the right balance depends on what you're optimizing for.
+
+**NDCG@K (Normalized Discounted Cumulative Gain)**
+Precision and recall treat the top 10 as a bag — position within the list doesn't
+matter. NDCG fixes this by rewarding you for placing relevant items *higher*.
+
+The intuition: if you found a relevant movie, was it your #1 recommendation or
+your #10? Showing it first is much more valuable. Users rarely scroll to the
+bottom of a recommendation list.
+
+Mathematically:
+  DCG@K = sum over positions of: (1 if relevant else 0) / log2(position + 1)
+
+Position 1 → divided by log2(2) = 1.0 (no discount)
+Position 2 → divided by log2(3) = 0.63 (some discount)
+Position 10 → divided by log2(11) = 0.29 (heavy discount)
+
+NDCG divides by the ideal DCG (all relevant items at the very top), so it's
+normalized to [0, 1].
+
+NDCG is the most important metric here because real users stop scrolling early.
+A relevant item at position 10 might as well not exist.
+
+---
+
+### 7. The Popularity Baseline — Why Simple Benchmarks Matter
+
+Before training any ML model, always ask: "what's the dumbest possible thing I
+could do, and how well does it work?"
+
+For recommendation, the dumbest thing is: recommend globally popular items to
+everyone, ignoring who they are. Our popularity model scores each movie as:
+  score = interaction_count × average_rating
+
+(using both together avoids rewarding obscure 5-star films with only 3 ratings)
+
+This baseline achieved P@10=0.041, NDCG@10=0.052. That's a high bar.
+
+Why is this important? Because if your personalized ML model can't beat this,
+you haven't learned anything useful beyond what's already obvious from the data.
+Many production recommender systems have failed exactly this check — they looked
+impressive until someone compared them against "just show popular stuff."
+
+**Bayesian averaging**: the reason we multiply count × avg_rating rather than
+using avg_rating alone relates to statistical confidence. A movie with 3 five-star
+ratings has a high average but we can't trust it — small sample. A movie with
+3,000 ratings at avg 4.1 is more reliably good. Multiplying by count implicitly
+shrinks low-count item scores toward zero, which is a form of regularization.
+
+---
+
+### 8. Collaborative Filtering and Matrix Factorization
+
+**Collaborative filtering** means "use the behavior of similar users to inform
+recommendations." If user A and user B have similar rating histories, and user B
+loved a movie that user A hasn't seen, recommend it to user A.
+
+Early CF systems found similar users by computing cosine similarity over raw rating
+vectors. This doesn't scale (6,040 × 6,040 similarity computations, and rating
+vectors are 3,706-dimensional and extremely sparse).
+
+**Matrix factorization** solves this with a much more elegant approach. Instead
+of comparing raw rating vectors, learn a compressed representation.
+
+The math: you have a rating matrix R of shape (n_users × n_items). Factorize it:
+  R ≈ U × V^T
+  U is shape (n_users × d)     — one row per user, d-dimensional embedding
+  V is shape (n_items × d)     — one row per item, d-dimensional embedding
+
+where d << n_items (we used d=64, vs n_items=3,706). Each user becomes a
+64-number vector. Each movie becomes a 64-number vector.
+
+The predicted score for user u and movie i is: U[u] · V[i] (dot product).
+
+Training adjusts U and V so that dot products are high for observed positive
+interactions. The model never directly "learns" what the 64 dimensions mean —
+they emerge from the data. But they often correspond to real structure:
+- One dimension might encode "preference for blockbuster action films"
+- Another might encode "appreciation for slow, character-driven European cinema"
+- Another might capture "era preference: 1970s vs 2000s"
+
+The model discovers these axes of taste automatically from who-rated-what.
+
+**Why "low rank"?** The assumption is that user preferences can be explained by
+a small number of underlying factors (d=64), not 3,706 independent factors for
+every movie. This is a strong but empirically useful assumption — most human taste
+can be characterized by dozens of preference axes, not thousands.
+
+---
+
+### 9. ALS — How Matrix Factorization Actually Trains
+
+ALS stands for Alternating Least Squares. It's one algorithm for solving the
+matrix factorization optimization problem.
+
+The challenge: you want to find U and V such that U × V^T matches the observed
+ratings. But you can't optimize both U and V simultaneously in closed form.
+
+ALS's solution: alternate between them.
+  Step 1: Hold V fixed. Optimize U — with V fixed, each user's embedding can
+          be solved exactly (it's a least squares problem with a closed-form
+          solution per user).
+  Step 2: Hold U fixed. Optimize V — with U fixed, each item's embedding can
+          be solved the same way.
+  Repeat for N iterations (we used 20).
+
+Each iteration improves both sets of embeddings. It converges to a good solution
+without needing gradient descent or learning rate tuning.
+
+The confidence-weighted version (implicit ALS) modifies the least squares to
+weight each observed interaction by its confidence score. Interactions with higher
+ratings contribute more to updating the embeddings.
+
+---
+
+### 10. Content-Based Filtering
+
+Content-based filtering ignores other users entirely. It only looks at:
+1. What are the attributes of each item (genre, tags, description)?
+2. What attributes did this user tend to like?
+3. Recommend items whose attributes match the user's profile.
+
+**Building item vectors**
+For each movie, we create a numerical vector representing its content.
+With only genre information (18 genres), each movie becomes an 18-dimensional
+binary vector: [1, 0, 1, 0, 0, 1, ...] meaning "has Drama, not Comedy, has
+Thriller, ..."
+
+This is called **one-hot encoding** applied to multi-label categories.
+
+**Building the user profile**
+Take all movies the user rated highly (≥ 4 stars). Average their item vectors.
+The result is a 18-dimensional vector that represents the user's content
+preferences — e.g., [0.7, 0.1, 0.6, ...] meaning "70% of liked movies had
+Drama, 10% had Comedy, 60% had Thriller..."
+
+**Scoring candidates**
+For each unseen movie, compute the **cosine similarity** between the movie's
+vector and the user's profile vector.
+
+Cosine similarity measures the angle between two vectors, not their magnitude.
+It ranges from 0 (completely orthogonal, no similarity) to 1 (identical direction).
+It's ideal for sparse feature vectors because it normalizes for how many features
+a movie has.
+
+**Why it failed here**
+18 genre dimensions are too coarse. Two users who both like "Action + Sci-Fi"
+will get nearly identical recommendations even if one likes cerebral 2001: A Space
+Odyssey and the other likes explosive Michael Bay films. The feature space doesn't
+have enough resolution to capture the difference.
+
+With richer features (sentence embeddings from movie descriptions, director info,
+user-generated tags), content-based becomes much more powerful.
+
+**The filter bubble problem**
+A well-functioning content model can trap users in their own taste profile. If you
+always recommend "more of the same," users never discover adjacent genres or
+surprising films. Real systems deliberately inject diversity to avoid this.
+
+---
+
+### 11. Embeddings
+
+An embedding is a dense, low-dimensional vector representation of a discrete entity
+(a user, a movie, a word, an item).
+
+Instead of representing "The Matrix" as movie #2571 (a meaningless integer), or
+as a 3,706-dimensional one-hot vector (mostly zeros), an embedding represents it
+as a 64-dimensional dense vector where every dimension has a meaningful learned value.
+
+The power of embeddings: similar items end up with similar vectors. After CF
+training, The Matrix and Blade Runner end up with similar item embeddings because
+they were liked by similar users. You didn't explicitly tell the model these movies
+are similar — it inferred it from the interaction patterns.
+
+Embeddings are now a foundational concept across all of modern ML:
+- Word2Vec: word embeddings where similar words have similar vectors
+- BERT: contextual word embeddings
+- CF matrix factorization: user and item embeddings
+- Neural networks: every hidden layer is learning embeddings of its inputs
+
+In this project: CF produces 64-dimensional embeddings for all 6,040 users and
+3,706 movies. These embeddings encode taste and content in a shared space.
+
+---
+
+### 12. Feature Engineering for Ranking
+
+When you have multiple signals (CF score, content score, popularity, etc.), one
+approach is to try to combine them by hand: "score = 0.6 × CF + 0.3 × popularity
++ 0.1 × content." But choosing those weights is a guess.
+
+A better approach: turn each signal into a **feature** and train a model to learn
+the optimal combination from data.
+
+In this project, for every (user, candidate movie) pair, we compute:
+- cf_score: the dot product of user and movie embeddings from CF
+- content_score: cosine similarity between user content profile and movie vector
+- pop_score: item's global popularity (count × avg_rating)
+- avg_rating: item's average rating
+- rating_count: log of number of ratings (log because scale matters less than order)
+- genre_overlap: how much the movie's genres match the user's genre history
+- user_interaction_count: log of how many movies the user has rated in training
+
+Each row in this feature table is one candidate pair. The label is 1 if the user
+rated that movie ≥ 4 stars in the validation set, 0 otherwise.
+
+This is **learning to rank** — train a model on these features to predict relevance.
+
+**Feature interaction**: the key insight here was that genre_overlap outperformed
+content_score even though both come from the same content model. Why? Because
+genre_overlap is a *targeted interaction feature* — it directly captures the match
+between this user's specific preferences and this movie's attributes. content_score
+is a generic global similarity. Designing features that capture the interaction
+between user and item is often more valuable than the raw model output.
+
+---
+
+### 13. Gradient Boosted Trees and LightGBM
+
+LightGBM is a **gradient boosted decision tree** framework. Understanding it
+requires understanding both decision trees and boosting.
+
+**Decision tree**: a flowchart of if/else rules learned from data.
+  "If cf_score > 0.8 AND genre_overlap > 0.3, predict relevant."
+  Each split is chosen to maximize the purity of the resulting groups.
+
+**Ensemble**: instead of one tree, train many. Each tree corrects the errors of
+the previous ones. This is **gradient boosting** — each new tree is fit on the
+*residual errors* (gradient) of the current ensemble.
+
+After 300 trees, the model has learned thousands of rules about when different
+feature combinations predict relevance. It handles non-linear relationships and
+feature interactions automatically — no need to manually compute "cf_score ×
+popularity" as a feature, because the tree splits will implicitly capture that.
+
+**Why GBDT for ranking?**
+- Handles mixed feature types (some scores, some log counts) without normalization
+- Naturally captures interactions between features
+- Feature importance is interpretable (how much did each feature reduce prediction
+  error across all trees)
+- Fast to train and inference
+- Generally strong on tabular data with engineered features
+
+**LambdaRank objective**
+Standard tree objectives minimize MSE (regression) or cross-entropy (classification).
+LambdaRank uses a custom objective that directly optimizes NDCG — the metric we
+actually care about. Instead of treating each candidate as independent, it considers
+the relative ordering of candidates for the same user and applies larger gradients
+to swaps that would most improve NDCG. This alignment between training objective
+and evaluation metric is important.
+
+---
+
+### 14. The Two-Stage Retrieval + Reranking Pipeline
+
+This architecture is used in virtually every large-scale production recommendation
+system (YouTube, Netflix, Spotify, Twitter, etc.). Understanding why requires
+thinking about the tradeoffs.
+
+**The problem**: you have millions of items. You could score each one for each user
+with a rich model, but that's too slow. You could use a fast cheap model for all
+items, but the quality is lower.
+
+**The solution**: split the problem into two stages.
+
+Stage 1 — Candidate generation (retrieval):
+Goal: recall. Don't miss relevant items. Speed is critical.
+Method: fast approximate nearest neighbor search in embedding space, or simple
+        score thresholds from CF + content models.
+Scale: from millions of items → ~100-500 candidates per user.
+Each candidate takes microseconds to score.
+
+Stage 2 — Reranking:
+Goal: precision and correct ordering. Get the ranking right.
+Method: a more expensive model (GBDT, neural network) with rich features per
+        candidate pair.
+Scale: only ~100-500 candidates, so it can afford to be slower.
+Each candidate takes milliseconds to score — acceptable when there are only 100.
+
+Why you can't just use the reranker for everything: if you applied the full
+feature engineering pipeline to all 3,706 movies × 6,040 users, that's 22M
+feature table rows to compute and score per inference. Impractical at scale.
+
+The two-stage pipeline separates "fast but coarse" from "slow but precise."
+This project uses CF + content-based as Stage 1 (generates 50 candidates each)
+and LightGBM as Stage 2 (reranks the union of ~100 candidates).
+
+---
+
+### 15. Popularity Bias and the Accuracy-Diversity Tradeoff
+
+**Popularity bias** occurs when a model systematically over-recommends popular
+items at the expense of niche or long-tail items.
+
+Why it happens mechanically:
+- Popular items appear more frequently in training data
+- More training examples → stronger, more well-trained embeddings
+- Better embeddings → higher CF scores → ranked higher → recommended more often
+- This feedback loop is circular: popular items get recommended → more interactions
+  → even more popular in training data for the next version
+
+In this project:
+- Popularity baseline: 99.9% bias (trivially — it only recommends the top 100)
+- CF: 32.2% bias (inherits popularity signal from training data)
+- Hybrid: 49.7% bias (reranker learned that avg_rating and pop_score predict
+  relevance, which is true, but amplifies popularity)
+
+**The tradeoff**
+On one axis: accuracy (NDCG, precision). On the other: diversity and novelty.
+A model optimized purely for accuracy will recommend popular items because they
+have broad appeal — safe bets. But a user who wants to discover niche films is
+poorly served.
+
+In production this is managed by adding explicit diversity constraints ("no more
+than 2 movies from the same genre"), re-ranking to inject long-tail items, or
+adding a "discovery mode" separate from "personalized mode."
+
+Our hybrid won on NDCG but increased popularity bias compared to CF. Better at
+predicting what users will rate highly in aggregate, but less likely to surface
+the hidden gem they'd love. This is an empirical confirmation of the tradeoff.
+
+---
+
+### 16. The Cold-Start Problem
+
+The cold-start problem occurs when a model has no prior data about a user or item.
+
+**User cold-start**: a brand new user has no interaction history. CF has nothing
+to learn from. Content-based can still work (ask the user their preferences upfront
+during onboarding). Popularity baseline also works (recommend broadly popular items
+until you have more signal).
+
+**Item cold-start**: a brand new movie has no ratings. CF has no interaction data
+to embed it. Content-based works (you know the genre, director, etc. from the
+day of release).
+
+In this project: MovieLens 1M was pre-filtered to users with ≥20 ratings, so
+user cold-start is artificially mild. In a real production system, a large fraction
+of users would have 1-5 interactions, making cold-start the dominant challenge.
+
+Our onboarding page (Phase 9) simulates cold-start handling: ask the user to rate
+5-10 movies before showing recommendations. This gives the content-based model
+enough signal to build a genre profile, and gives CF enough signal to produce
+initial embeddings.
+
+---
+
+### 17. Overfitting, Generalization, and Why Validation Sets Matter
+
+**Overfitting**: a model that learns the training data too well — including its
+noise and quirks — and fails to generalize to new data.
+
+In recommendation: a model could memorize "user 42 rated movie 318 a 5 in January"
+and use that as a direct lookup rather than learning a generalizable pattern. On
+training data it looks perfect. On new data it's useless.
+
+**Regularization**: techniques that penalize overfitting by constraining the model.
+In ALS, the regularization parameter (0.01 in this project) penalizes large
+embedding values. This prevents any single user or item from getting an extreme
+embedding that overfits to a small number of interactions.
+
+**The validation set's role**: during the hybrid reranker training, we used the
+validation set (val.parquet) to generate training labels for LightGBM — "did this
+user actually interact with this candidate in the next time period?" The test set
+is kept completely separate until the final evaluation. This ensures we can't
+accidentally optimize for the test set metrics.
+
+---
+
+### 18. Macro vs Micro Averaging
+
+When you compute an average metric across thousands of users, the averaging
+method matters.
+
+**Macro average**: compute the metric for each user independently, then average
+across users. Every user contributes equally regardless of how many test items
+they have.
+
+**Micro average**: pool all predictions and labels together, then compute one
+global metric. Users with more test items contribute more.
+
+We use macro averaging throughout. This means a user with 3 test items and a user
+with 30 test items count equally. This is more honest for user-centric evaluation:
+we want the system to work well for every user, not just for heavy raters.
+
+The 49.1% failure rate we observed is a macro metric: 49.1% of individual users
+got zero NDCG, regardless of whether they had 2 or 20 test items.
+
+---
+
+### 19. Feature Importance and Model Interpretability
+
+One advantage of gradient boosted trees over neural networks is interpretability.
+
+After training LightGBM, we can ask: "for each feature, how much did it contribute
+to improving NDCG across all 300 trees?" The answer is the feature importance score.
+
+Our feature importance ranking:
+  genre_overlap (1900) > cf_score (1842) > user_interaction_count (1818) >
+  avg_rating (1174) > pop_score (904) > rating_count (799) > content_score (563)
+
+What this tells us:
+- genre_overlap being #1 means the direct match between user taste and item genre
+  is the single most predictive signal. This is the content model's contribution —
+  not through its raw score, but through a well-engineered interaction feature.
+- cf_score being #2 confirms that collaborative behavioral signal is valuable.
+- user_interaction_count being #3 means the reranker learned to trust CF scores
+  more for active users (who have better-trained embeddings). This is the model
+  learning implicit uncertainty quantification.
+- content_score being last confirms what Phase 5 showed: the raw cosine similarity
+  output of the content model is a weak signal when features are just genre.
+
+This kind of interpretability is valuable in production: it tells you where to
+invest in feature engineering next (richer content features, session signals, etc.).
 
 ---
 
@@ -283,36 +734,85 @@ Findings:
 ---
 
 ### Phase 6 — Hybrid Reranker
-**Status:** PENDING
+**Status:** COMPLETE | **Date:** 2026-03-26
 
-ML concept to encounter: two-stage retrieval + reranking, feature engineering for
-ranking, gradient boosted trees (LambdaRank), feature importance as interpretability
+**ML concepts encountered:** Two-stage retrieval + reranking, feature engineering
+for ranking, LightGBM LambdaRank (optimizes NDCG directly), feature importance
+as model interpretability, accuracy vs diversity tradeoff
 
-What to do:
-- Candidate generation: union of top-50 from CF + top-50 from content-based
-- Build feature table: (cf_score, content_score, pop_score, avg_rating,
-  rating_count, genre_overlap, user_interaction_count) per candidate pair
-- Train LightGBM LambdaRank on val set labels
-- Evaluate on test set; compare feature importances
+Model: LightGBM LambdaRank | 300 estimators | 7 features | 2,500 training users
+Training data: 242,214 candidate pairs | 1.81% positive rate
 
-Questions to answer:
-- Does combining signals improve NDCG over CF alone?
-- Which features does LightGBM weight most heavily?
-- Does the reranker fix the recall/precision tradeoff we saw in CF?
+Overall results:
+  P@10=0.0375 | R@10=0.0621 | NDCG@10=0.0542
+
+Segment breakdown (vs CF):
+  cold  (n=2071): P=0.028 | R=0.097 | NDCG=0.063  [CF: R=0.089, NDCG=0.059] +7%
+  warm  (n=2563): P=0.037 | R=0.049 | NDCG=0.046  [CF: R=0.037, NDCG=0.032] +44%
+  hot   (n=1215): P=0.054 | R=0.030 | NDCG=0.057  [CF: P=0.040, NDCG=0.040] +43%
+
+Feature importance ranking:
+  1. genre_overlap          (1900) ← highest
+  2. cf_score               (1842)
+  3. user_interaction_count (1818)
+  4. avg_rating             (1174)
+  5. pop_score               (904)
+  6. rating_count            (799)
+  7. content_score           (563) ← lowest
+
+Key learnings:
+- Hybrid wins R@10 (0.062) and NDCG@10 (0.054) — best of all models
+- Popularity still wins P@10 (0.041 vs 0.038) — it plays safe with sure-thing
+  crowd-pleasers; hybrid takes personalized bets and wins more often overall
+- Warm/hot users benefit most from reranking (+44% NDCG) — more training signal
+  means richer feature vectors for LightGBM to work with
+- THE PARADOX: content_score (raw cosine similarity) is the LEAST important
+  feature, but genre_overlap (a targeted interaction feature from the same model)
+  is the MOST important. Lesson: well-designed interaction features beat raw model
+  scores. Specificity of the feature matters more than the sophistication of the
+  source model.
+- ACCURACY vs DIVERSITY TRADEOFF: hybrid has 49.7% popularity bias in recs
+  (vs CF 32.2%). The reranker learned avg_rating and pop_score are strong
+  predictors — correct, but it amplifies the popularity bias beyond CF's level.
+  Better metrics, but less diverse recommendations.
+- user_interaction_count (#3 importance) = the model is learning "how active is
+  this user" as a proxy for CF embedding quality. More active users → more reliable
+  CF scores → reranker can trust them more. This is implicit calibration.
 
 ---
 
 ### Phase 7 — Evaluation & Error Analysis
-**Status:** PENDING
+**Status:** COMPLETE | **Date:** 2026-03-29
 
-ML concept to encounter: model comparison, failure analysis, diversity vs accuracy
-tradeoff, popularity bias measurement
+**ML concepts encountered:** Model comparison methodology, failure analysis,
+accuracy vs diversity tradeoff, popularity bias measurement, metric interpretation
 
-What to do:
-- Full comparison table: all 4 models × all metrics × all user segments
-- Failure cases: users where all models fail
-- Popularity bias: what % of recs are top-100 items per model?
-- Diversity metric: intra-list genre diversity per model
+Output: artifacts/metrics/comparison.json (powers insights page)
+
+Full comparison:
+  Popularity  P=0.041 | R=0.045 | NDCG=0.052 | bias=99.9% | diversity=0.337
+  CF          P=0.029 | R=0.052 | NDCG=0.043 | bias=32.2% | diversity=0.387
+  Content     P=0.009 | R=0.015 | NDCG=0.013 | bias=9.5%  | diversity=0.193
+  Hybrid      P=0.038 | R=0.062 | NDCG=0.054 | bias=49.7% | diversity=0.387
+
+Key learnings:
+- Popularity bias=99.9%: the baseline recommends from the SAME ~100 movies for
+  every user. Its decent precision comes from broad appeal, not personalization.
+  Any system claiming to personalize must be compared against this honestly.
+- Content-based diversity paradox: lowest bias (9.5%) but worst accuracy. Proves
+  that "less popular" does not mean "more personalized" — it's just randomly
+  unpopular. Diversity without relevance is noise.
+- 49.1% failure rate: in nearly HALF of users, no model places any relevant item
+  in top-10. The macro-averaged NDCG of 0.054 is pulled up by users where models
+  work. For ~50% of users, the system returns nothing useful.
+  Causes: small test sets (3-6 items), strict ≥4.0 threshold, temporal drift
+  (preferences at test time may have shifted from training signal).
+- Hybrid: best R@10 + NDCG, matches CF diversity — the right model to serve.
+  But its 49.7% popularity bias is higher than CF (32.2%), meaning the reranker's
+  accuracy gains come partly from learning to favor popular items. Classic
+  accuracy vs diversity tradeoff confirmed empirically.
+- Feature importance (from reranker): genre_overlap > cf_score >
+  user_interaction_count > avg_rating > pop_score > rating_count > content_score
 
 ---
 
@@ -338,7 +838,7 @@ Pages: Onboarding | Recommendations | Search | Insights (model analysis)
 | Popularity baseline | 0.0409 | 0.0446 | 0.0520 | Non-personalized; strong floor |
 | Collaborative filtering | 0.0288 | 0.0520 | 0.0433 | Better recall, worse ordering |
 | Content-based | 0.0085 | 0.0149 | 0.0128 | Genre-only too coarse |
-| Hybrid reranker | TBD | TBD | TBD | |
+| Hybrid reranker | 0.0375 | 0.0621 | 0.0542 | Best R@10 + NDCG; highest popularity bias |
 
 ---
 
