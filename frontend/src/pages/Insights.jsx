@@ -6,30 +6,32 @@ import {
 import { getInsights } from '../lib/api'
 
 const MODEL_COLORS = {
-  'Popularity':            '#6b7280',
+  'Popularity':              '#7a7268',
   'Collaborative Filtering': '#4f8ef7',
-  'Content Based':         '#10b981',
-  'Hybrid Reranker':       '#f59e0b',
+  'Content Based':           '#2dd4bf',
+  'Hybrid Reranker':         '#c8963e',
 }
 
-const METRIC_BEST = { // higher = better for all
-  precision_at_10: true, recall_at_10: true, ndcg_at_10: true,
-  popularity_bias: false, genre_diversity: true,
-}
-
-function getBest(table, key) {
+function getBest(table, key, higher = true) {
   const vals = table.map(r => r[key])
-  return METRIC_BEST[key] ? Math.max(...vals) : Math.min(...vals)
+  return higher ? Math.max(...vals) : Math.min(...vals)
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 14px' }}>
-      <p style={{ fontFamily: 'Syne, sans-serif', fontWeight: 600, marginBottom: '6px', fontSize: '0.85rem' }}>{label}</p>
+    <div style={{
+      background: 'var(--surface2)',
+      border: '1px solid var(--border-strong)',
+      borderRadius: '3px',
+      padding: '10px 14px',
+    }}>
+      <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 600, marginBottom: '6px', fontSize: '0.9rem' }}>
+        {label}
+      </p>
       {payload.map(p => (
-        <p key={p.name} style={{ fontSize: '0.8rem', color: p.color }}>
-          {p.name}: <strong>{typeof p.value === 'number' ? p.value.toFixed(4) : p.value}</strong>
+        <p key={p.name} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: p.color, marginTop: '2px' }}>
+          {p.name}: {typeof p.value === 'number' ? p.value.toFixed(4) : p.value}
         </p>
       ))}
     </div>
@@ -37,7 +39,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 }
 
 export default function Insights() {
-  const [data, setData]     = useState(null)
+  const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -48,11 +50,10 @@ export default function Insights() {
   }, [])
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', paddingTop: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div className="shimmer" style={{ width: '200px', height: '20px', borderRadius: '4px', margin: '0 auto 12px' }} />
-        <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Loading experiment results...</p>
-      </div>
+    <div style={{ minHeight: '100vh', paddingTop: '58px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--muted)' }}>
+        loading experiment results…
+      </p>
     </div>
   )
 
@@ -60,93 +61,116 @@ export default function Insights() {
 
   const { comparison_table, feature_importance, key_findings, tradeoffs, future_work, dataset_stats, failure_rate } = data
 
-  // Chart data
   const modelChartData = comparison_table.map(r => ({
     name: r.model.replace(' Filtering','').replace(' Reranker',''),
-    'NDCG@10':  r.ndcg_at_10,
+    'NDCG@10':   r.ndcg_at_10,
     'Recall@10': r.recall_at_10,
-    'P@10':     r.precision_at_10,
+    'P@10':      r.precision_at_10,
   }))
 
   const segmentData = (() => {
     const hybrid = comparison_table.find(r => r.model === 'Hybrid Reranker')
     if (!hybrid?.segments) return []
     return ['cold','warm','hot'].map(seg => ({
-      name: seg.charAt(0).toUpperCase() + seg.slice(1),
-      NDCG: hybrid.segments[seg]?.ndcg || 0,
+      name: seg,
+      NDCG:      hybrid.segments[seg]?.ndcg || 0,
       Precision: hybrid.segments[seg]?.precision || 0,
-      Recall: hybrid.segments[seg]?.recall || 0,
+      Recall:    hybrid.segments[seg]?.recall || 0,
     }))
   })()
 
   const maxImportance = Math.max(...feature_importance.map(f => f.importance))
 
   return (
-    <div style={{ minHeight: '100vh', paddingTop: '60px' }}>
+    <div style={{ minHeight: '100vh', paddingTop: '58px' }}>
 
       {/* ── HERO ── */}
       <div style={{
-        position: 'relative', padding: '5rem 2rem 4rem',
-        background: `
-          radial-gradient(ellipse at 30% 50%, rgba(139,92,246,0.1) 0%, transparent 60%),
-          radial-gradient(ellipse at 70% 30%, rgba(245,158,11,0.08) 0%, transparent 60%)
-        `,
+        padding: '4rem 2.5rem 3rem',
         borderBottom: '1px solid var(--border)',
-        textAlign: 'center',
+        maxWidth: '900px',
       }}>
-        <span style={{ fontSize: '0.75rem', letterSpacing: '0.25em', color: 'var(--purple)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '1.5rem' }}>
-          ML Experiment · Phase 7 Results
-        </span>
-        <h1 style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.05, marginBottom: '1.5rem' }}>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '1.5rem' }}>
+          ml experiment · phase 7 results
+        </p>
+        <h1 style={{
+          fontFamily: 'var(--font-display)',
+          fontWeight: 700,
+          fontStyle: 'italic',
+          fontSize: 'clamp(2.2rem, 5vw, 4rem)',
+          letterSpacing: '-0.02em',
+          lineHeight: 1.0,
+          color: 'var(--text)',
+          marginBottom: '1.5rem',
+        }}>
           This is not a movie app.<br />
-          <span style={{ background: 'linear-gradient(135deg, var(--blue), var(--purple))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            It's an ML experiment.
-          </span>
+          It's an ML experiment.
         </h1>
-        <p style={{ color: 'var(--muted)', fontSize: '1rem', maxWidth: '640px', margin: '0 auto 2.5rem', lineHeight: 1.7 }}>
-          Four recommendation models trained, evaluated, and compared on MovieLens 1M.
+        <p style={{
+          color: 'var(--muted)',
+          fontSize: '0.92rem',
+          maxWidth: '580px',
+          lineHeight: 1.75,
+          fontWeight: 300,
+        }}>
+          Four recommendation models — trained, evaluated, and compared on MovieLens 1M.
           The goal: understand where each model succeeds, where it fails, and why hybrid
           reranking outperforms any single approach.
         </p>
 
-        {/* Dataset stats strip */}
+        {/* Dataset stats — inline editorial strip */}
         <div style={{
-          display: 'inline-flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center',
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: '12px', padding: '1.25rem 2.5rem',
+          display: 'flex', gap: '0', flexWrap: 'wrap',
+          marginTop: '2.5rem',
+          borderTop: '1px solid var(--border)',
+          borderBottom: '1px solid var(--border)',
         }}>
           {[
-            { label: 'Users', value: dataset_stats?.n_users?.toLocaleString() },
-            { label: 'Movies', value: dataset_stats?.n_movies?.toLocaleString() },
-            { label: 'Ratings', value: `${(dataset_stats?.n_ratings_train / 1e6).toFixed(1)}M` },
-            { label: 'Sparsity', value: `${(dataset_stats?.sparsity * 100).toFixed(1)}%` },
-            { label: 'Failure Rate', value: `${(failure_rate * 100).toFixed(0)}%`, color: 'var(--red)' },
-          ].map(s => (
-            <div key={s.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: '1.5rem', color: s.color || 'var(--text)' }}>
-                {s.value}
-              </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '2px' }}>
-                {s.label}
-              </div>
+            { label: 'users',        value: dataset_stats?.n_users?.toLocaleString() },
+            { label: 'movies',       value: dataset_stats?.n_movies?.toLocaleString() },
+            { label: 'ratings',      value: `${(dataset_stats?.n_ratings_train / 1e6).toFixed(1)}M` },
+            { label: 'sparsity',     value: `${(dataset_stats?.sparsity * 100).toFixed(1)}%` },
+            { label: 'failure rate', value: `${(failure_rate * 100).toFixed(0)}%`, accent: true },
+          ].map((s, i) => (
+            <div key={s.label} style={{
+              padding: '1.25rem 2rem',
+              borderRight: i < 4 ? '1px solid var(--border)' : 'none',
+            }}>
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 500,
+                fontSize: '1.4rem',
+                color: s.accent ? 'var(--red)' : 'var(--text)',
+                lineHeight: 1,
+              }}>{s.value}</div>
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.62rem',
+                color: 'var(--muted)',
+                marginTop: '4px',
+              }}>{s.label}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem 6rem' }}>
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '3rem 2.5rem 6rem' }}>
 
         {/* ── MODEL COMPARISON TABLE ── */}
-        <Section title="Model Comparison" subtitle="All four models evaluated on the same test set · higher is better except Popularity Bias">
+        <Section title="Model Comparison" note="evaluated on same test set · lower popularity bias = better">
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                <tr style={{ borderBottom: '1px solid var(--border-strong)' }}>
                   {['Model','P@10','R@10','NDCG@10','Pop. Bias','Diversity'].map(h => (
                     <th key={h} style={{
-                      padding: '12px 16px', textAlign: h === 'Model' ? 'left' : 'center',
-                      color: 'var(--muted)', fontWeight: 500, fontSize: '0.75rem',
-                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      padding: '10px 16px',
+                      textAlign: h === 'Model' ? 'left' : 'center',
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--muted)',
+                      fontWeight: 400,
+                      fontSize: '0.65rem',
+                      letterSpacing: '0.04em',
                     }}>{h}</th>
                   ))}
                 </tr>
@@ -156,25 +180,24 @@ export default function Insights() {
                   const bestP    = getBest(comparison_table, 'precision_at_10')
                   const bestR    = getBest(comparison_table, 'recall_at_10')
                   const bestN    = getBest(comparison_table, 'ndcg_at_10')
-                  const bestBias = getBest(comparison_table, 'popularity_bias')
+                  const bestBias = getBest(comparison_table, 'popularity_bias', false)
                   const bestDiv  = getBest(comparison_table, 'genre_diversity')
                   const color = MODEL_COLORS[row.model] || 'var(--text)'
                   return (
-                    <tr key={i} style={{
-                      borderBottom: '1px solid var(--border)',
-                      background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
-                    }}>
-                      <td style={{ padding: '14px 16px' }}>
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '13px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
-                          <span style={{ fontWeight: 600, fontFamily: 'Syne, sans-serif' }}>{row.model}</span>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+                          <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 600, fontSize: '0.9rem' }}>
+                            {row.model}
+                          </span>
                         </div>
                       </td>
-                      <MetricCell value={row.precision_at_10}  best={bestP}    isBest={row.precision_at_10 === bestP}    fmt={v => v.toFixed(4)} />
-                      <MetricCell value={row.recall_at_10}     best={bestR}    isBest={row.recall_at_10 === bestR}       fmt={v => v.toFixed(4)} />
-                      <MetricCell value={row.ndcg_at_10}       best={bestN}    isBest={row.ndcg_at_10 === bestN}         fmt={v => v.toFixed(4)} />
-                      <MetricCell value={row.popularity_bias}  best={bestBias} isBest={row.popularity_bias === bestBias} fmt={v => `${(v*100).toFixed(1)}%`} reverse />
-                      <MetricCell value={row.genre_diversity}  best={bestDiv}  isBest={row.genre_diversity === bestDiv}  fmt={v => v.toFixed(3)} />
+                      <MetricCell value={row.precision_at_10}  isBest={row.precision_at_10 === bestP}    fmt={v => v.toFixed(4)} />
+                      <MetricCell value={row.recall_at_10}     isBest={row.recall_at_10 === bestR}       fmt={v => v.toFixed(4)} />
+                      <MetricCell value={row.ndcg_at_10}       isBest={row.ndcg_at_10 === bestN}         fmt={v => v.toFixed(4)} />
+                      <MetricCell value={row.popularity_bias}  isBest={row.popularity_bias === bestBias} fmt={v => `${(v*100).toFixed(1)}%`} />
+                      <MetricCell value={row.genre_diversity}  isBest={row.genre_diversity === bestDiv}  fmt={v => v.toFixed(3)} />
                     </tr>
                   )
                 })}
@@ -183,129 +206,170 @@ export default function Insights() {
           </div>
         </Section>
 
-        {/* ── BAR CHARTS ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '2rem', margin: '2.5rem 0' }}>
-
-          <ChartCard title="NDCG@10 & Recall@10 by Model">
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={modelChartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
+        {/* ── CHARTS ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', margin: '0 0 3rem' }}>
+          <ChartCard title="NDCG@10 & Recall@10 by model">
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={modelChartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,245,220,0.04)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: '#7a7268', fontSize: 10, fontFamily: 'IBM Plex Mono' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#7a7268', fontSize: 9, fontFamily: 'IBM Plex Mono' }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="NDCG@10" radius={[4,4,0,0]} fill="#f59e0b" />
-                <Bar dataKey="Recall@10" radius={[4,4,0,0]} fill="#4f8ef7" />
+                <Bar dataKey="NDCG@10"   radius={[2,2,0,0]} fill="#c8963e" maxBarSize={28} />
+                <Bar dataKey="Recall@10" radius={[2,2,0,0]} fill="#4f8ef7" maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Hybrid Reranker · Performance by User Segment">
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={segmentData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
+          <ChartCard title="Hybrid reranker · user segment performance">
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={segmentData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,245,220,0.04)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: '#7a7268', fontSize: 11, fontFamily: 'IBM Plex Mono' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#7a7268', fontSize: 9, fontFamily: 'IBM Plex Mono' }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="NDCG" radius={[4,4,0,0]} fill="#8b5cf6" />
-                <Bar dataKey="Recall" radius={[4,4,0,0]} fill="#10b981" />
-                <Bar dataKey="Precision" radius={[4,4,0,0]} fill="#f59e0b" />
+                <Bar dataKey="NDCG"      radius={[2,2,0,0]} fill="#8b5cf6" maxBarSize={22} />
+                <Bar dataKey="Recall"    radius={[2,2,0,0]} fill="#2dd4bf" maxBarSize={22} />
+                <Bar dataKey="Precision" radius={[2,2,0,0]} fill="#c8963e" maxBarSize={22} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
         </div>
 
         {/* ── FEATURE IMPORTANCE ── */}
-        <Section title="Reranker Feature Importance" subtitle="What LightGBM learned to weight most — from 300 gradient boosted trees">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <Section title="Reranker Feature Importance" note="what LightGBM learned from 300 gradient-boosted trees">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             {feature_importance.map((f, i) => (
-              <div key={f.feature} className="fade-up" style={{ display: 'flex', alignItems: 'center', gap: '12px', animationDelay: `${i * 0.06}s`, opacity: 0 }}>
-                <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.85rem', width: '200px', flexShrink: 0, textAlign: 'right' }}>
+              <div key={f.feature} className="fade-up" style={{
+                display: 'flex', alignItems: 'center', gap: '16px',
+                padding: '10px 0',
+                borderBottom: '1px solid var(--border)',
+                animationDelay: `${i * 0.05}s`, opacity: 0,
+              }}>
+                <span style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.72rem',
+                  color: i === 0 ? 'var(--amber)' : 'var(--muted)',
+                  width: '180px',
+                  flexShrink: 0,
+                  textAlign: 'right',
+                }}>
                   {f.feature.replace(/_/g, ' ')}
                 </span>
-                <div style={{ flex: 1, height: '8px', background: 'var(--dim)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ flex: 1, height: '4px', background: 'var(--dim)', borderRadius: '2px', overflow: 'hidden' }}>
                   <div style={{
                     height: '100%',
                     width: `${(f.importance / maxImportance) * 100}%`,
-                    background: i === 0 ? 'linear-gradient(90deg, var(--gold), var(--red))' : 'linear-gradient(90deg, var(--blue), var(--purple))',
-                    borderRadius: '4px',
-                    transition: 'width 0.8s ease',
+                    background: i === 0 ? 'var(--amber)' : i < 3 ? 'var(--teal)' : 'var(--muted)',
+                    borderRadius: '2px',
+                    transition: 'width 0.7s ease',
                   }} />
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted)', width: '50px' }}>{f.importance}</span>
+                <span style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.68rem',
+                  color: 'var(--muted)',
+                  width: '44px',
+                  textAlign: 'right',
+                }}>{f.importance}</span>
               </div>
             ))}
           </div>
         </Section>
 
         {/* ── KEY FINDINGS ── */}
-        <Section title="Key Findings" subtitle="What the experiments revealed">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+        <Section title="Key Findings" note="what the experiments revealed">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             {key_findings.map((f, i) => (
-              <div key={i} className="card-hover fade-up" style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: '12px', padding: '1.5rem',
-                animationDelay: `${i * 0.08}s`, opacity: 0,
+              <div key={i} className="fade-up" style={{
+                display: 'grid',
+                gridTemplateColumns: '48px 1fr',
+                gap: '1.5rem',
+                padding: '1.75rem 0',
+                borderBottom: '1px solid var(--border)',
+                animationDelay: `${i * 0.06}s`, opacity: 0,
               }}>
                 <div style={{
-                  width: '32px', height: '32px', borderRadius: '8px',
-                  background: 'linear-gradient(135deg, var(--blue)22, var(--purple)22)',
-                  border: '1px solid var(--blue)33',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--blue)',
-                  fontFamily: 'Syne, sans-serif', fontWeight: 700,
-                }}>{i + 1}</div>
-                <h3 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.75rem', lineHeight: 1.3 }}>
-                  {f.title}
-                </h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.65 }}>
-                  {f.detail}
-                </p>
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 700,
+                  fontSize: '2.5rem',
+                  color: 'var(--dim)',
+                  lineHeight: 1,
+                  userSelect: 'none',
+                }}>{String(i + 1).padStart(2, '0')}</div>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontStyle: 'italic',
+                    fontWeight: 600,
+                    fontSize: '1.05rem',
+                    marginBottom: '0.6rem',
+                    color: 'var(--text)',
+                    lineHeight: 1.3,
+                  }}>{f.title}</h3>
+                  <p style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.84rem',
+                    color: 'var(--muted)',
+                    lineHeight: 1.7,
+                    fontWeight: 300,
+                  }}>{f.detail}</p>
+                </div>
               </div>
             ))}
           </div>
         </Section>
 
         {/* ── TRADEOFFS ── */}
-        <Section title="Model Tradeoffs" subtitle="The tensions that shaped every design decision">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-            {tradeoffs.map((t, i) => {
-              const gradients = [
-                'linear-gradient(135deg, rgba(79,142,247,0.1), rgba(139,92,246,0.1))',
-                'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(239,68,68,0.1))',
-                'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(6,182,212,0.1))',
-              ]
-              return (
-                <div key={i} className="fade-up" style={{
-                  background: gradients[i % 3],
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: '12px', padding: '1.5rem',
-                  animationDelay: `${i * 0.1}s`, opacity: 0,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
-                    <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '0.9rem' }}>{t.axis_a}</span>
-                    <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>vs</span>
-                    <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '0.9rem' }}>{t.axis_b}</span>
-                  </div>
-                  <p style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.65 }}>{t.observation}</p>
+        <Section title="Model Tradeoffs" note="the tensions that shaped every design decision">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1px', background: 'var(--border)', border: '1px solid var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+            {tradeoffs.map((t, i) => (
+              <div key={i} className="fade-up" style={{
+                background: 'var(--surface)',
+                padding: '1.5rem',
+                animationDelay: `${i * 0.08}s`, opacity: 0,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text)' }}>
+                    {t.axis_a}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted)', fontSize: '0.65rem' }}>vs</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text)' }}>
+                    {t.axis_b}
+                  </span>
                 </div>
-              )
-            })}
+                <p style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.82rem',
+                  color: 'var(--muted)',
+                  lineHeight: 1.7,
+                  fontWeight: 300,
+                }}>{t.observation}</p>
+              </div>
+            ))}
           </div>
         </Section>
 
         {/* ── FUTURE WORK ── */}
-        <Section title="What I'd Do Next" subtitle="Directions that would meaningfully improve this system">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <Section title="What I'd Do Next" note="directions that would meaningfully improve this system">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             {future_work.map((fw, i) => (
               <div key={i} className="fade-up" style={{
-                display: 'flex', gap: '14px', alignItems: 'flex-start',
-                padding: '14px 18px',
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: '8px',
-                animationDelay: `${i * 0.06}s`, opacity: 0,
+                display: 'flex', gap: '16px', alignItems: 'flex-start',
+                padding: '12px 0',
+                borderBottom: '1px solid var(--border)',
+                animationDelay: `${i * 0.05}s`, opacity: 0,
               }}>
-                <span style={{ color: 'var(--purple)', fontSize: '0.85rem', marginTop: '1px', flexShrink: 0 }}>→</span>
-                <span style={{ fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--muted)' }}>{fw}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--amber)', fontSize: '0.7rem', flexShrink: 0, marginTop: '2px' }}>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.85rem',
+                  lineHeight: 1.6,
+                  color: 'var(--muted)',
+                  fontWeight: 300,
+                }}>{fw}</span>
               </div>
             ))}
           </div>
@@ -316,14 +380,23 @@ export default function Insights() {
   )
 }
 
-function Section({ title, subtitle, children }) {
+function Section({ title, note, children }) {
   return (
-    <div style={{ marginBottom: '3rem' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 'clamp(1.2rem, 2.5vw, 1.6rem)', letterSpacing: '-0.02em', marginBottom: '0.35rem' }}>
-          {title}
-        </h2>
-        {subtitle && <p style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{subtitle}</p>}
+    <div style={{ marginBottom: '3.5rem' }}>
+      <div style={{ marginBottom: '1.5rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-strong)', display: 'flex', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
+        <h2 style={{
+          fontFamily: 'var(--font-display)',
+          fontStyle: 'italic',
+          fontWeight: 700,
+          fontSize: 'clamp(1.2rem, 2.5vw, 1.5rem)',
+          color: 'var(--text)',
+          letterSpacing: '-0.01em',
+        }}>{title}</h2>
+        {note && (
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--muted)' }}>
+            {note}
+          </p>
+        )}
       </div>
       {children}
     </div>
@@ -333,28 +406,35 @@ function Section({ title, subtitle, children }) {
 function ChartCard({ title, children }) {
   return (
     <div style={{
-      background: 'var(--surface)', border: '1px solid var(--border)',
-      borderRadius: '12px', padding: '1.25rem 1.5rem',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: '3px',
+      padding: '1.25rem 1.5rem',
     }}>
-      <h3 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.85rem', color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '1.25rem' }}>
-        {title}
-      </h3>
+      <p style={{
+        fontFamily: 'var(--font-mono)',
+        fontWeight: 400,
+        fontSize: '0.65rem',
+        color: 'var(--muted)',
+        marginBottom: '1.25rem',
+      }}>{title}</p>
       {children}
     </div>
   )
 }
 
-function MetricCell({ value, isBest, fmt, reverse }) {
+function MetricCell({ value, isBest, fmt }) {
   return (
     <td style={{
-      padding: '14px 16px', textAlign: 'center',
-      fontFamily: 'Syne, sans-serif', fontWeight: isBest ? 700 : 400,
-      fontSize: '0.88rem',
-      color: isBest ? 'var(--gold)' : 'var(--text)',
-      background: isBest ? 'rgba(245,158,11,0.05)' : 'transparent',
+      padding: '13px 16px',
+      textAlign: 'center',
+      fontFamily: 'var(--font-mono)',
+      fontWeight: isBest ? 500 : 400,
+      fontSize: '0.82rem',
+      color: isBest ? 'var(--amber)' : 'var(--muted)',
     }}>
       {fmt(value)}
-      {isBest && <span style={{ marginLeft: '4px', fontSize: '0.6rem' }}>★</span>}
+      {isBest && <span style={{ marginLeft: '4px', color: 'var(--amber)', fontSize: '0.55rem', verticalAlign: 'super' }}>★</span>}
     </td>
   )
 }

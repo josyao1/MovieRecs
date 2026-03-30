@@ -13,50 +13,62 @@ export default function Navbar() {
   return (
     <nav style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-      background: 'linear-gradient(to bottom, rgba(7,7,15,0.95) 0%, rgba(7,7,15,0) 100%)',
-      backdropFilter: 'blur(8px)',
-      borderBottom: '1px solid rgba(255,255,255,0.04)',
-      padding: '0 2rem',
-      height: '60px',
+      background: 'rgba(14,12,10,0.92)',
+      backdropFilter: 'blur(12px)',
+      borderBottom: '1px solid var(--border)',
+      padding: '0 2.5rem',
+      height: '58px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     }}>
-      <Link to="/" style={{ textDecoration: 'none' }}>
+
+      {/* Wordmark */}
+      <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'baseline', gap: '10px' }}>
         <span style={{
-          fontFamily: 'Syne, sans-serif',
-          fontWeight: 800,
-          fontSize: '1.25rem',
-          letterSpacing: '-0.02em',
-          background: 'linear-gradient(135deg, #4f8ef7, #8b5cf6)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
+          fontFamily: 'var(--font-display)',
+          fontWeight: 700,
+          fontSize: '1.35rem',
+          letterSpacing: '0.04em',
+          color: 'var(--text)',
         }}>RecLab</span>
-        <span style={{ color: 'var(--muted)', fontSize: '0.7rem', marginLeft: '6px', fontWeight: 300 }}>
-          ML Platform
-        </span>
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.65rem',
+          color: 'var(--muted)',
+          fontWeight: 400,
+          letterSpacing: '0.05em',
+          borderLeft: '1px solid var(--border-strong)',
+          paddingLeft: '10px',
+        }}>ML Platform</span>
       </Link>
 
-      <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+      {/* Nav links */}
+      <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center' }}>
         {links.map(({ to, label }) => {
           const active = pathname === to || (to !== '/' && pathname.startsWith(to))
           return (
             <Link key={to} to={to} style={{
               textDecoration: 'none',
-              fontSize: '0.85rem',
-              fontWeight: active ? 600 : 400,
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.82rem',
+              fontWeight: active ? 500 : 400,
               color: active ? 'var(--text)' : 'var(--muted)',
-              transition: 'color 0.2s',
+              transition: 'color 0.15s',
+              letterSpacing: '0',
               position: 'relative',
-              paddingBottom: '4px',
             }}>
-              {label}
               {active && (
                 <span style={{
-                  position: 'absolute', bottom: 0, left: 0, right: 0,
-                  height: '2px',
-                  background: 'linear-gradient(90deg, var(--blue), var(--purple))',
-                  borderRadius: '1px',
+                  position: 'absolute',
+                  left: '-10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: '3px',
+                  height: '3px',
+                  borderRadius: '50%',
+                  background: 'var(--amber)',
                 }} />
               )}
+              {label}
             </Link>
           )
         })}

@@ -77,6 +77,16 @@ class AppState:
         with open(ROOT / "artifacts/metrics/comparison.json") as f:
             self.comparison = json.load(f)
 
+        # --- Poster URLs (optional; fetched from TMDB) ---
+        posters_path = ROOT / "artifacts" / "posters.json"
+        if posters_path.exists():
+            with open(posters_path) as f:
+                raw = json.load(f)
+            self.posters: dict[int, str | None] = {int(k): v for k, v in raw.items()}
+            print(f"Posters: {sum(1 for v in self.posters.values() if v):,} loaded")
+        else:
+            self.posters = {}
+
         # --- Session store (in-memory; ephemeral users created via /onboard) ---
         # Maps session_user_id -> list of (movie_id, rating) tuples
         self.sessions: dict[str, list[tuple[int, float]]] = {}

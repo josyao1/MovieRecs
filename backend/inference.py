@@ -139,6 +139,7 @@ def _format_results(
             continue
         results.append({
             **info,
+            "poster_url": state.posters.get(movie_id),
             "score": round(float(score), 4),
             "explanation": _explain(movie_id, cf_scores, cb_scores, genre_profile, state),
         })

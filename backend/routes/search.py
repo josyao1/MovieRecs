@@ -21,6 +21,7 @@ class SearchResult(BaseModel):
     title: str
     year: Optional[int]
     genres: list[str]
+    poster_url: Optional[str] = None
     match_score: float        # text relevance score
     personalized_score: float # reranker score (0 if no user)
     explanation: str
@@ -111,6 +112,7 @@ def search(q: str, user_id: Optional[int] = None, session_id: Optional[str] = No
             title=info["title"],
             year=info["year"],
             genres=info["genres"],
+            poster_url=state.posters.get(mid),
             match_score=round(match_score, 4),
             personalized_score=round(p_score, 4),
             explanation=explanation,

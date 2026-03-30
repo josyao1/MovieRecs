@@ -5,12 +5,11 @@ import { getMovieGradient, getGenreColor, getExplanationStyle } from '../lib/col
 import MovieCard from '../components/MovieCard'
 
 const MODEL_OPTIONS = [
-  { label: 'Hybrid (Best)',           value: 'hybrid',   desc: 'CF + Content + LightGBM Reranker' },
-  { label: 'Collaborative Filter',    value: 'cf',       desc: 'Matrix Factorization (ALS)' },
-  { label: 'Popularity Baseline',     value: 'popular',  desc: 'Global popularity · no personalization' },
+  { label: 'Hybrid',                value: 'hybrid',  desc: 'CF + Content + LightGBM reranker' },
+  { label: 'Collaborative Filter',  value: 'cf',      desc: 'Matrix factorization (ALS)' },
+  { label: 'Popularity Baseline',   value: 'popular', desc: 'Global popularity · no personalization' },
 ]
 
-// Demo user IDs for different model modes
 const DEMO_USERS = { cf: 42, popular: 1, hybrid: null }
 
 export default function Recommendations() {
@@ -40,52 +39,56 @@ export default function Recommendations() {
   const rest = recs.slice(1)
 
   return (
-    <div style={{ minHeight: '100vh', paddingTop: '60px' }}>
+    <div style={{ minHeight: '100vh', paddingTop: '58px' }}>
 
-      {/* Model selector bar */}
+      {/* Model selector */}
       <div style={{
-        padding: '1.5rem 2rem 0',
-        display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
+        padding: '1.25rem 2.5rem',
+        display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap',
+        borderBottom: '1px solid var(--border)',
       }}>
-        <span style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          Model
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--muted)' }}>
+          model
         </span>
         {MODEL_OPTIONS.map(opt => (
           <button key={opt.value} onClick={() => setModel(opt.value)} style={{
-            padding: '6px 16px', borderRadius: '6px', fontSize: '0.8rem',
-            fontWeight: model === opt.value ? 600 : 400,
-            cursor: 'pointer', transition: 'all 0.2s',
-            border: model === opt.value ? '1px solid var(--blue)' : '1px solid var(--border)',
-            background: model === opt.value ? 'rgba(79,142,247,0.15)' : 'var(--surface)',
-            color: model === opt.value ? 'var(--blue)' : 'var(--muted)',
+            padding: '5px 14px',
+            borderRadius: '2px',
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.8rem',
+            fontWeight: model === opt.value ? 500 : 400,
+            cursor: 'pointer', transition: 'all 0.15s',
+            border: model === opt.value ? '1px solid var(--amber)' : '1px solid var(--border)',
+            background: model === opt.value ? 'rgba(200,150,62,0.12)' : 'transparent',
+            color: model === opt.value ? 'var(--amber)' : 'var(--muted)',
           }}>
             {opt.label}
           </button>
         ))}
-        <span style={{ fontSize: '0.75rem', color: 'var(--muted)', marginLeft: 'auto' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--muted)', marginLeft: 'auto' }}>
           {MODEL_OPTIONS.find(m => m.value === model)?.desc}
         </span>
       </div>
 
-      {/* Hero section */}
+      {/* Hero */}
       {loading ? (
-        <div className="shimmer" style={{ margin: '2rem', height: '400px', borderRadius: '16px' }} />
+        <div className="shimmer" style={{ margin: '1.5rem 2.5rem', height: '420px', borderRadius: '4px' }} />
       ) : hero ? (
         <HeroCard movie={hero} />
       ) : null}
 
-      {/* Recommendations row */}
+      {/* Scroll row */}
       {!loading && rest.length > 0 && (
-        <div style={{ padding: '1.5rem 2rem 4rem' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '1rem' }}>
-            Recommended for You
-          </h2>
-          <div style={{
-            display: 'flex', gap: '16px', overflowX: 'auto',
-            paddingBottom: '1rem',
-          }} className="scrollbar-hide">
+        <div style={{ padding: '1.5rem 2.5rem 4rem' }}>
+          <p style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.68rem',
+            color: 'var(--muted)',
+            marginBottom: '1rem',
+          }}>recommended for you</p>
+          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '1rem' }} className="scrollbar-hide">
             {rest.map((m, i) => (
-              <div key={m.movie_id} className="fade-up" style={{ animationDelay: `${i * 0.05}s`, opacity: 0 }}>
+              <div key={m.movie_id} className="fade-up" style={{ animationDelay: `${i * 0.04}s`, opacity: 0 }}>
                 <MovieCard movie={m} showExplanation compact={false} />
               </div>
             ))}
@@ -95,8 +98,13 @@ export default function Recommendations() {
 
       {!loading && recs.length === 0 && (
         <div style={{ textAlign: 'center', padding: '6rem 2rem', color: 'var(--muted)' }}>
-          <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</p>
-          <p>No recommendations found. <button onClick={() => navigate('/onboard')} style={{ color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer' }}>Onboard first</button></p>
+          <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: '1.5rem', marginBottom: '1rem' }}>
+            No recommendations found.
+          </p>
+          <button onClick={() => navigate('/onboard')} style={{
+            color: 'var(--amber)', background: 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '0.8rem',
+          }}>→ Onboard first</button>
         </div>
       )}
     </div>
@@ -106,56 +114,94 @@ export default function Recommendations() {
 function HeroCard({ movie }) {
   const gradient = getMovieGradient(movie.genres, movie.movie_id)
   const expStyle  = getExplanationStyle(movie.explanation || '')
+  const [imgError, setImgError] = useState(false)
+  const showImg = movie.poster_url && !imgError
 
   return (
     <div className="fade-up" style={{
-      margin: '2rem',
-      borderRadius: '16px',
+      margin: '1.5rem 2.5rem',
+      borderRadius: '4px',
       overflow: 'hidden',
       position: 'relative',
-      minHeight: '380px',
+      minHeight: '420px',
       background: gradient,
       display: 'flex', alignItems: 'flex-end',
-      border: '1px solid rgba(255,255,255,0.08)',
+      border: '1px solid var(--border)',
     }}>
-      {/* Gradient overlay */}
+      {/* Real poster as background */}
+      {showImg && (
+        <img
+          src={movie.poster_url}
+          alt={movie.title}
+          onError={() => setImgError(true)}
+          style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            objectFit: 'cover', objectPosition: 'center top',
+          }}
+        />
+      )}
+
+      {/* Overlay */}
       <div style={{
         position: 'absolute', inset: 0,
-        background: 'linear-gradient(to right, rgba(7,7,15,0.95) 40%, transparent 100%)',
+        background: showImg
+          ? 'linear-gradient(to right, rgba(14,12,10,0.97) 38%, rgba(14,12,10,0.55) 65%, rgba(14,12,10,0.15) 100%)'
+          : 'linear-gradient(to right, rgba(14,12,10,0.95) 40%, transparent 100%)',
       }} />
 
-      <div style={{ position: 'relative', padding: '3rem', maxWidth: '600px' }}>
+      <div style={{ position: 'relative', padding: '3rem', maxWidth: '580px' }}>
+        {/* Badge */}
         <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: '6px',
-          fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.15em',
-          textTransform: 'uppercase', color: expStyle.color,
-          background: expStyle.bg, border: `1px solid ${expStyle.color}44`,
-          borderRadius: '4px', padding: '4px 10px', marginBottom: '1rem',
-        }}># 1 Pick · {expStyle.label}</div>
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.62rem',
+          color: expStyle.color,
+          background: 'rgba(14,12,10,0.7)',
+          border: `1px solid ${expStyle.color}55`,
+          borderRadius: '2px', padding: '3px 9px', marginBottom: '1.25rem',
+        }}>
+          <span style={{ opacity: 0.6 }}>#1 pick</span>
+          <span style={{ width: '1px', height: '10px', background: `${expStyle.color}44` }} />
+          {expStyle.label}
+        </div>
 
+        {/* Title */}
         <h1 style={{
-          fontFamily: 'Syne, sans-serif', fontWeight: 800,
-          fontSize: 'clamp(1.6rem, 4vw, 2.8rem)',
-          letterSpacing: '-0.03em', lineHeight: 1.1,
+          fontFamily: 'var(--font-display)',
+          fontWeight: 700,
+          fontStyle: 'italic',
+          fontSize: 'clamp(1.8rem, 4vw, 3rem)',
+          letterSpacing: '-0.01em',
+          lineHeight: 1.05,
           marginBottom: '0.75rem',
+          color: 'var(--text)',
         }}>{movie.title}</h1>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        {/* Meta */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
           {movie.year && (
-            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>{movie.year}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'rgba(237,232,223,0.45)' }}>
+              {movie.year}
+            </span>
           )}
           {(movie.genres || []).map(g => (
             <span key={g} style={{
-              fontSize: '0.75rem', fontWeight: 500,
-              color: getGenreColor(g), background: `${getGenreColor(g)}20`,
-              border: `1px solid ${getGenreColor(g)}40`,
-              borderRadius: '4px', padding: '2px 8px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.68rem',
+              color: getGenreColor(g),
             }}>{g}</span>
           ))}
         </div>
 
         {movie.explanation && (
-          <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+          <p style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.85rem',
+            color: 'rgba(237,232,223,0.55)',
+            lineHeight: 1.6,
+            fontWeight: 300,
+          }}>
             {movie.explanation}
           </p>
         )}

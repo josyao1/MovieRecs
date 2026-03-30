@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { getMovieGradient, getGenreColor, getExplanationStyle } from '../lib/colors'
 
 export default function MovieCard({ movie, selected, onSelect, showExplanation = false, compact = false }) {
   const gradient = getMovieGradient(movie.genres, movie.movie_id)
   const expStyle  = getExplanationStyle(movie.explanation || '')
+  const [imgError, setImgError] = useState(false)
+  const showImg = movie.poster_url && !imgError
 
   return (
     <div
@@ -10,67 +13,102 @@ export default function MovieCard({ movie, selected, onSelect, showExplanation =
       onClick={() => onSelect && onSelect(movie)}
       style={{
         position: 'relative',
-        borderRadius: '10px',
+        borderRadius: '4px',
         overflow: 'hidden',
         background: 'var(--surface)',
         border: selected
-          ? '2px solid var(--blue)'
+          ? `1px solid var(--amber)`
           : '1px solid var(--border)',
-        boxShadow: selected ? '0 0 20px rgba(79,142,247,0.4)' : 'none',
-        transition: 'all 0.22s ease',
-        minWidth: compact ? '160px' : '200px',
+        transition: 'all 0.2s ease',
+        minWidth: compact ? '140px' : '180px',
         flexShrink: 0,
       }}
     >
-      {/* Poster gradient area */}
+      {/* Poster */}
       <div style={{
-        height: compact ? '120px' : '160px',
+        height: compact ? '210px' : '270px',
         background: gradient,
         position: 'relative',
-        display: 'flex',
-        alignItems: 'flex-end',
-        padding: '12px',
+        overflow: 'hidden',
       }}>
-        {/* Year badge */}
+        {showImg ? (
+          <img
+            src={movie.poster_url}
+            alt={movie.title}
+            onError={() => setImgError(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <div style={{
+            width: '100%', height: '100%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontSize: compact ? '3rem' : '4rem',
+              color: 'rgba(255,255,255,0.15)',
+              fontStyle: 'italic',
+            }}>
+              {movie.title?.[0] || '?'}
+            </span>
+          </div>
+        )}
+
+        {/* Overlay for text */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to top, rgba(14,12,10,0.88) 0%, transparent 55%)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Year */}
         <span style={{
-          position: 'absolute', top: '10px', right: '10px',
-          fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)',
-          background: 'rgba(0,0,0,0.4)', borderRadius: '4px',
-          padding: '2px 6px', backdropFilter: 'blur(4px)',
+          position: 'absolute', top: '8px', right: '8px',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.65rem',
+          color: 'rgba(237,232,223,0.6)',
+          background: 'rgba(14,12,10,0.6)',
+          borderRadius: '2px',
+          padding: '2px 5px',
+          backdropFilter: 'blur(4px)',
         }}>{movie.year}</span>
 
-        {/* Selected checkmark */}
+        {/* Selected mark */}
         {selected && (
           <span style={{
-            position: 'absolute', top: '10px', left: '10px',
-            width: '22px', height: '22px', borderRadius: '50%',
-            background: 'var(--blue)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            fontSize: '0.75rem', fontWeight: 700,
+            position: 'absolute', top: '8px', left: '8px',
+            width: '20px', height: '20px', borderRadius: '2px',
+            background: 'var(--amber)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '0.7rem', fontWeight: 600, color: '#0e0c0a',
           }}>✓</span>
         )}
 
         {/* Explanation badge */}
         {showExplanation && movie.explanation && (
           <span style={{
-            fontSize: '0.65rem', fontWeight: 600,
-            color: expStyle.color, background: expStyle.bg,
-            border: `1px solid ${expStyle.color}44`,
-            borderRadius: '4px', padding: '3px 8px',
+            position: 'absolute', bottom: '8px', left: '8px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.6rem',
+            color: expStyle.color,
+            background: 'rgba(14,12,10,0.75)',
+            border: `1px solid ${expStyle.color}55`,
+            borderRadius: '2px', padding: '2px 6px',
             backdropFilter: 'blur(4px)',
-            letterSpacing: '0.03em',
           }}>{expStyle.label}</span>
         )}
       </div>
 
       {/* Info */}
-      <div style={{ padding: compact ? '10px' : '12px' }}>
+      <div style={{ padding: compact ? '8px 10px' : '10px 12px' }}>
         <p style={{
-          fontFamily: 'Syne, sans-serif',
+          fontFamily: 'var(--font-display)',
           fontWeight: 600,
-          fontSize: compact ? '0.8rem' : '0.9rem',
-          lineHeight: 1.3,
-          marginBottom: '8px',
+          fontStyle: 'italic',
+          fontSize: compact ? '0.85rem' : '0.95rem',
+          lineHeight: 1.25,
+          marginBottom: '6px',
           color: 'var(--text)',
           display: '-webkit-box',
           WebkitLineClamp: 2,
@@ -81,11 +119,11 @@ export default function MovieCard({ movie, selected, onSelect, showExplanation =
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
           {(movie.genres || []).slice(0, compact ? 1 : 2).map(g => (
             <span key={g} style={{
-              fontSize: '0.65rem', fontWeight: 500,
-              color: getGenreColor(g), background: `${getGenreColor(g)}18`,
-              border: `1px solid ${getGenreColor(g)}33`,
-              borderRadius: '3px', padding: '2px 6px',
-            }}>{g}</span>
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.58rem',
+              color: 'var(--muted)',
+              letterSpacing: '0.02em',
+            }}>{g}{compact ? '' : ''}</span>
           ))}
         </div>
       </div>

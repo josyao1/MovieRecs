@@ -190,6 +190,7 @@ def get_item(movie_id: int):
     stats = state.item_stats.loc[movie_id] if movie_id in state.item_stats.index else None
     return {
         **info,
+        "poster_url": state.posters.get(movie_id),
         "avg_rating": round(float(stats["avg_rating"]), 2) if stats is not None else None,
         "rating_count": int(stats["rating_count"]) if stats is not None else None,
     }
@@ -223,6 +224,7 @@ def list_movies(
         stats = state.item_stats.loc[mid]
         results.append({
             **info,
+            "poster_url": state.posters.get(mid),
             "avg_rating": round(float(stats["avg_rating"]), 2),
             "rating_count": int(stats["rating_count"]),
         })

@@ -7,10 +7,19 @@ import MovieCard from '../components/MovieCard'
 const ALL_GENRES = ['Action','Adventure','Animation','Comedy','Crime','Drama',
                     'Fantasy','Horror','Mystery','Romance','Sci-Fi','Thriller']
 
+const DECADES = [
+  { label: '60s', start: 1960, end: 1969 },
+  { label: '70s', start: 1970, end: 1979 },
+  { label: '80s', start: 1980, end: 1989 },
+  { label: '90s', start: 1990, end: 1999 },
+  { label: '00s', start: 2000, end: 2009 },
+]
+
 export default function Onboard() {
   const [movies, setMovies]     = useState([])
-  const [selected, setSelected] = useState({})   // {movie_id: rating}
+  const [selected, setSelected] = useState({})
   const [genre, setGenre]       = useState(null)
+  const [decade, setDecade]     = useState(null)
   const [loading, setLoading]   = useState(true)
   const [submitting, setSubmit] = useState(false)
   const navigate = useNavigate()
@@ -42,8 +51,7 @@ export default function Onboard() {
     setSubmit(true)
     try {
       const res = await onboard(ratings)
-      const { session_id } = res.data
-      localStorage.setItem('reclab_session_id', session_id)
+      localStorage.setItem('reclab_session_id', res.data.session_id)
       navigate('/recommendations')
     } catch(e) {
       console.error(e)
@@ -53,87 +61,118 @@ export default function Onboard() {
 
   const count = Object.keys(selected).length
 
-  return (
-    <div style={{ minHeight: '100vh', paddingTop: '60px' }}>
+  // Filter by decade client-side
+  const visibleMovies = decade
+    ? movies.filter(m => m.year >= decade.start && m.year <= decade.end)
+    : movies
 
-      {/* Hero */}
+  return (
+    <div style={{ minHeight: '100vh', paddingTop: '58px' }}>
+
+      {/* Header */}
       <div style={{
-        position: 'relative',
-        padding: '5rem 2rem 3rem',
-        background: `
-          radial-gradient(ellipse at 20% 50%, rgba(79,142,247,0.12) 0%, transparent 60%),
-          radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.1) 0%, transparent 60%),
-          var(--bg)
-        `,
-        textAlign: 'center',
+        padding: '3.5rem 2.5rem 2rem',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+        gap: '2rem', flexWrap: 'wrap',
       }}>
-        <p style={{ fontSize: '0.8rem', letterSpacing: '0.2em', color: 'var(--blue)', textTransform: 'uppercase', marginBottom: '1rem', fontWeight: 600 }}>
-          Step 1 of 1
-        </p>
-        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 800, letterSpacing: '-0.03em', marginBottom: '1rem', lineHeight: 1.1 }}>
-          Tell us what you love.
-        </h1>
-        <p style={{ color: 'var(--muted)', fontSize: '1.05rem', maxWidth: '500px', margin: '0 auto 1.5rem', lineHeight: 1.6 }}>
-          Select a few films. Our ML models will learn your taste and generate personalized recommendations.
-        </p>
+        <div>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
+            step 1 — taste calibration
+          </p>
+          <h1 style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            fontStyle: 'italic',
+            fontSize: 'clamp(2rem, 5vw, 3.2rem)',
+            lineHeight: 1.05,
+            letterSpacing: '-0.01em',
+            color: 'var(--text)',
+          }}>
+            Tell us what you love.
+          </h1>
+          <p style={{
+            color: 'var(--muted)',
+            fontSize: '0.88rem',
+            maxWidth: '440px',
+            marginTop: '0.75rem',
+            lineHeight: 1.65,
+            fontWeight: 300,
+          }}>
+            Select films you've seen and enjoyed. The ML model will learn your taste and surface personalized recommendations.
+          </p>
+        </div>
 
         {count > 0 && (
-          <div className="fade-up" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.75rem',
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: '100px', padding: '8px 16px', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+          <div className="fade-up" style={{
+            display: 'flex', alignItems: 'center', gap: '1rem',
+            background: 'var(--surface)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: '3px',
+            padding: '10px 18px',
+          }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text)' }}>
               {count} selected
             </span>
-            <span style={{ width: '1px', height: '14px', background: 'var(--dim)' }} />
-            <span style={{ fontSize: '0.85rem', color: count >= 3 ? 'var(--green)' : 'var(--gold)' }}>
-              {count >= 3 ? '✓ Ready' : `${3 - count} more to go`}
+            <span style={{ width: '1px', height: '14px', background: 'var(--border-strong)' }} />
+            <span style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.8rem',
+              color: count >= 3 ? 'var(--green)' : 'var(--amber)',
+            }}>
+              {count >= 3 ? '✓ ready' : `need ${3 - count} more`}
             </span>
           </div>
         )}
       </div>
 
-      {/* Genre filter */}
+      {/* Filters */}
       <div style={{
-        padding: '0 2rem 1.5rem',
-        display: 'flex', gap: '8px', flexWrap: 'wrap',
-        justifyContent: 'center',
+        padding: '1.25rem 2.5rem',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center',
       }}>
-        <button
-          onClick={() => setGenre(null)}
-          style={{
-            padding: '6px 16px', borderRadius: '100px', fontSize: '0.8rem',
-            fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
-            border: genre === null ? '1px solid var(--blue)' : '1px solid var(--border)',
-            background: genre === null ? 'rgba(79,142,247,0.15)' : 'var(--surface)',
-            color: genre === null ? 'var(--blue)' : 'var(--muted)',
-          }}
-        >All</button>
+        {/* Genre filters */}
+        <FilterChip active={genre === null} onClick={() => setGenre(null)} label="All genres" />
         {ALL_GENRES.map(g => (
-          <button key={g} onClick={() => setGenre(g === genre ? null : g)} style={{
-            padding: '6px 16px', borderRadius: '100px', fontSize: '0.8rem',
-            fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
-            border: genre === g ? `1px solid ${getGenreColor(g)}` : '1px solid var(--border)',
-            background: genre === g ? `${getGenreColor(g)}18` : 'var(--surface)',
-            color: genre === g ? getGenreColor(g) : 'var(--muted)',
-          }}>{g}</button>
+          <FilterChip
+            key={g}
+            active={genre === g}
+            onClick={() => setGenre(g === genre ? null : g)}
+            label={g}
+            color={getGenreColor(g)}
+          />
+        ))}
+
+        <span style={{ width: '1px', height: '18px', background: 'var(--border-strong)', margin: '0 0.25rem' }} />
+
+        {/* Decade filters */}
+        {DECADES.map(d => (
+          <FilterChip
+            key={d.label}
+            active={decade?.label === d.label}
+            onClick={() => setDecade(decade?.label === d.label ? null : d)}
+            label={d.label}
+            mono
+          />
         ))}
       </div>
 
-      {/* Movie grid */}
+      {/* Grid */}
       <div style={{
-        padding: '0 2rem 6rem',
+        padding: '1.5rem 2.5rem 6rem',
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-        gap: '16px',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+        gap: '12px',
         maxWidth: '1400px',
         margin: '0 auto',
       }}>
         {loading
           ? Array.from({ length: 24 }).map((_, i) => (
-              <div key={i} className="shimmer" style={{ height: '280px', borderRadius: '10px' }} />
+              <div key={i} className="shimmer" style={{ height: '280px', borderRadius: '4px' }} />
             ))
-          : movies.map((m, i) => (
-              <div key={m.movie_id} className="fade-up" style={{ animationDelay: `${Math.min(i * 0.02, 0.4)}s`, opacity: 0 }}>
+          : visibleMovies.map((m, i) => (
+              <div key={m.movie_id} className="fade-up" style={{ animationDelay: `${Math.min(i * 0.015, 0.3)}s`, opacity: 0 }}>
                 <MovieCard
                   movie={m}
                   selected={!!selected[m.movie_id]}
@@ -142,9 +181,14 @@ export default function Onboard() {
               </div>
             ))
         }
+        {!loading && visibleMovies.length === 0 && (
+          <div style={{ gridColumn: '1/-1', padding: '4rem', textAlign: 'center', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
+            No films found for these filters.
+          </div>
+        )}
       </div>
 
-      {/* Sticky CTA */}
+      {/* CTA */}
       {count > 0 && (
         <div className="fade-up" style={{
           position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
@@ -154,22 +198,51 @@ export default function Onboard() {
             onClick={handleSubmit}
             disabled={submitting || count < 3}
             style={{
-              padding: '14px 36px', borderRadius: '100px',
-              background: count >= 3
-                ? 'linear-gradient(135deg, var(--blue), var(--purple))'
-                : 'var(--dim)',
-              color: 'white', fontFamily: 'Syne, sans-serif',
-              fontWeight: 700, fontSize: '0.95rem',
-              border: 'none', cursor: count >= 3 ? 'pointer' : 'not-allowed',
-              boxShadow: count >= 3 ? '0 8px 32px rgba(79,142,247,0.4)' : 'none',
-              transition: 'all 0.3s', letterSpacing: '0.02em',
+              padding: '13px 32px',
+              borderRadius: '3px',
+              background: count >= 3 ? 'var(--amber)' : 'var(--dim)',
+              color: count >= 3 ? '#0e0c0a' : 'var(--muted)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontStyle: 'italic',
+              fontSize: '1rem',
+              border: 'none',
+              cursor: count >= 3 ? 'pointer' : 'not-allowed',
+              transition: 'all 0.2s',
               opacity: submitting ? 0.7 : 1,
+              letterSpacing: '0.01em',
             }}
           >
-            {submitting ? 'Building your profile...' : `Get My Recommendations →`}
+            {submitting ? 'Building your profile…' : `Get My Recommendations →`}
           </button>
         </div>
       )}
     </div>
+  )
+}
+
+function FilterChip({ active, onClick, label, color, mono }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '4px 11px',
+        borderRadius: '2px',
+        fontFamily: mono ? 'var(--font-mono)' : 'var(--font-body)',
+        fontSize: '0.75rem',
+        fontWeight: active ? 500 : 400,
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        border: active
+          ? `1px solid ${color || 'var(--amber)'}`
+          : '1px solid var(--border)',
+        background: active
+          ? `${color || 'var(--amber)'}18`
+          : 'transparent',
+        color: active
+          ? (color || 'var(--amber)')
+          : 'var(--muted)',
+      }}
+    >{label}</button>
   )
 }
