@@ -71,25 +71,23 @@ class ContentBasedModel:
         self._item_vectors = feature_matrix  # shape: (n_movies, n_features)
 
         self._user_seen = train.groupby("user_id")["movie_id"].apply(set).to_dict()
-        self._train = train  # stored for profile building at inference
+
+        # Precompute and cache user profiles so we don't need to store _train
+        pos = train[train["rating"] >= POSITIVE_THRESHOLD]
+        self._user_profiles: dict[int, np.ndarray] = {}
+        for user_id, group in pos.groupby("user_id"):
+            indices = [self._item_index[m] for m in group["movie_id"] if m in self._item_index]
+            if not indices:
+                continue
+            profile = np.asarray(self._item_vectors[indices].mean(axis=0)).flatten()
+            norm = np.linalg.norm(profile)
+            self._user_profiles[user_id] = profile / norm if norm > 0 else profile
+
         return self
 
     def _user_profile(self, user_id: int) -> np.ndarray | None:
-        """Build a user's content preference vector from their positive ratings."""
-        seen = self._train[
-            (self._train["user_id"] == user_id)
-            & (self._train["rating"] >= POSITIVE_THRESHOLD)
-        ]["movie_id"].tolist()
-
-        valid_indices = [self._item_index[m] for m in seen if m in self._item_index]
-        if not valid_indices:
-            return None
-
-        profile = np.asarray(
-            self._item_vectors[valid_indices].mean(axis=0)
-        ).flatten()
-        norm = np.linalg.norm(profile)
-        return profile / norm if norm > 0 else profile
+        """Return precomputed user content preference vector."""
+        return self._user_profiles.get(user_id)
 
     def recommend(self, user_id: int, top_k: int = 10) -> list[tuple[int, float]]:
         profile = self._user_profile(user_id)

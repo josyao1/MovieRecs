@@ -7,10 +7,16 @@ models — no re-loading per request.
 Artifacts expected:
   artifacts/models/cf_model.pkl
   artifacts/models/content_model.pkl
+  artifacts/models/popularity_model.pkl
   artifacts/models/reranker.pkl
   artifacts/metrics/comparison.json
+  artifacts/precomputed/item_stats.parquet     (from scripts/slim_models.py)
+  artifacts/precomputed/user_train_count.json  (from scripts/slim_models.py)
+  artifacts/precomputed/user_seen.parquet      (from scripts/slim_models.py)
   data/processed/movies.csv
-  data/processed/train.parquet   (for item stats + user history lookup)
+
+Falls back to building from train.parquet if precomputed files are absent
+(backwards-compatible with pre-slim workflow).
 """
 from __future__ import annotations
 
@@ -23,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).parents[1]
+COMPUTED = ROOT / "artifacts" / "precomputed"
 
 
 class AppState:
@@ -43,57 +50,92 @@ class AppState:
             }
             for r in self.movies.itertuples()
         }
-
-        # --- Training data (for item stats and user seen-sets) ---
-        self.train = pd.read_parquet(ROOT / "data/processed/train.parquet")
-        self.item_stats = (
-            self.train.groupby("movie_id")["rating"]
-            .agg(avg_rating="mean", rating_count="count")
-            .assign(pop_score=lambda d: d["rating_count"] * d["avg_rating"])
-        )
-        self.user_train_count = (
-            self.train.groupby("user_id")["movie_id"].count().to_dict()
-        )
         self.genre_lookup: dict[int, set[str]] = {
             mid: set(info["genres"]) for mid, info in self.movie_lookup.items()
         }
 
+        # --- Item stats + user interaction counts ---
+        if (COMPUTED / "item_stats.parquet").exists():
+            _item_stats = pd.read_parquet(COMPUTED / "item_stats.parquet")
+            self.item_stats = _item_stats.set_index("movie_id")
+            print(f"  item_stats: {len(self.item_stats):,} movies (precomputed)")
+        else:
+            print("  Precomputed item_stats not found, building from train.parquet…")
+            train = pd.read_parquet(ROOT / "data/processed/train.parquet")
+            self.item_stats = (
+                train.groupby("movie_id")["rating"]
+                .agg(avg_rating="mean", rating_count="count")
+                .assign(pop_score=lambda d: d["rating_count"] * d["avg_rating"])
+            )
+
+        if (COMPUTED / "user_train_count.json").exists():
+            with open(COMPUTED / "user_train_count.json") as f:
+                self.user_train_count: dict[int, int] = {
+                    int(k): v for k, v in json.load(f).items()
+                }
+            print(f"  user_train_count: {len(self.user_train_count):,} users (precomputed)")
+        else:
+            if not hasattr(self, "_train_loaded"):
+                train = pd.read_parquet(ROOT / "data/processed/train.parquet")
+            self.user_train_count = (
+                train.groupby("user_id")["movie_id"].count().to_dict()
+            )
+
+        # --- User seen sets (used to filter already-watched movies) ---
+        if (COMPUTED / "user_seen.parquet").exists():
+            _seen_df = pd.read_parquet(COMPUTED / "user_seen.parquet")
+            user_seen: dict[int, set[int]] = (
+                _seen_df.groupby("user_id")["movie_id"].apply(set).to_dict()
+            )
+            print(f"  user_seen: {len(user_seen):,} users (precomputed)")
+        else:
+            if not hasattr(self, "train"):
+                train = pd.read_parquet(ROOT / "data/processed/train.parquet")
+            user_seen = train.groupby("user_id")["movie_id"].apply(set).to_dict()
+
         # --- Models ---
         with open(ROOT / "artifacts/models/cf_model.pkl", "rb") as f:
             self.cf = pickle.load(f)
+        # Inject user_seen if it was stripped for size
+        if not getattr(self.cf, "_user_seen", None):
+            self.cf._user_seen = user_seen
+
         with open(ROOT / "artifacts/models/content_model.pkl", "rb") as f:
             self.cb = pickle.load(f)
+        if not getattr(self.cb, "_user_seen", None):
+            self.cb._user_seen = user_seen
+
         with open(ROOT / "artifacts/models/reranker.pkl", "rb") as f:
             rd = pickle.load(f)
         self.ranker = rd["ranker"]
         self.feature_importance = rd["importances"]
 
-        # Popularity model (inline — lightweight)
-        from src.models.popularity import PopularityModel
-        self.pop = PopularityModel(score_mode="weighted")
-        self.pop.fit(self.train)
+        # Popularity model
+        with open(ROOT / "artifacts/models/popularity_model.pkl", "rb") as f:
+            self.pop = pickle.load(f)
+        if not getattr(self.pop, "_user_seen", None):
+            self.pop._user_seen = user_seen
 
         # --- Precomputed metrics ---
         with open(ROOT / "artifacts/metrics/comparison.json") as f:
             self.comparison = json.load(f)
 
-        # --- Poster URLs (optional; fetched from TMDB) ---
+        # --- Poster URLs ---
         posters_path = ROOT / "artifacts" / "posters.json"
         if posters_path.exists():
             with open(posters_path) as f:
                 raw = json.load(f)
             self.posters: dict[int, str | None] = {int(k): v for k, v in raw.items()}
-            print(f"Posters: {sum(1 for v in self.posters.values() if v):,} loaded")
+            print(f"  Posters: {sum(1 for v in self.posters.values() if v):,} loaded")
         else:
             self.posters = {}
 
-        # --- Session store (in-memory; ephemeral users created via /onboard) ---
-        # Maps session_user_id -> list of (movie_id, rating) tuples
+        # --- Session store ---
         self.sessions: dict[str, list[tuple[int, float]]] = {}
 
         print(
             f"Ready: {len(self.movie_lookup):,} movies | "
-            f"{self.train['user_id'].nunique():,} trained users"
+            f"{len(self.user_train_count):,} trained users"
         )
 
 

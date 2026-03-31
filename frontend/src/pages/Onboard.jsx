@@ -50,7 +50,7 @@ export default function Onboard() {
         setTotalPages(Math.ceil((r.data.total || 0) / PAGE_SIZE))
       })
       .finally(() => setLoading(false))
-  }, [genre, decade, page])
+  }, [genre, decade, page, searchQuery])
 
   // Search mode — debounced
   useEffect(() => {
@@ -97,6 +97,7 @@ export default function Onboard() {
     try {
       const res = await onboard(ratings)
       localStorage.setItem('reclab_session_id', res.data.session_id)
+      localStorage.setItem('reclab_initial_ratings', JSON.stringify(ratings))
       navigate('/recommendations')
     } catch(e) {
       console.error(e)
@@ -361,7 +362,7 @@ function PaginationBtn({ children, active, disabled, onClick }) {
         padding: '0 8px',
         fontFamily: 'var(--font-mono)', fontSize: '0.72rem',
         border: active ? '1px solid var(--amber)' : '1px solid var(--border)',
-        background: active ? 'var(--amber)18' : 'transparent',
+        background: active ? 'rgba(200,150,62,0.07)' : 'transparent',
         color: disabled ? 'var(--dim)' : active ? 'var(--amber)' : 'var(--muted)',
         borderRadius: '2px',
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -384,7 +385,7 @@ function FilterChip({ active, onClick, label, color, mono }) {
         cursor: 'pointer',
         transition: 'all 0.15s',
         border: active ? `1px solid ${color || 'var(--amber)'}` : '1px solid var(--border)',
-        background: active ? `${color || 'var(--amber)'}18` : 'transparent',
+        background: active ? (color ? `${color}18` : 'rgba(200,150,62,0.07)') : 'transparent',
         color: active ? (color || 'var(--amber)') : 'var(--muted)',
       }}
     >{label}</button>
