@@ -59,10 +59,16 @@ def recommend_for_known_user(user_id: int, top_k: int, state) -> list[dict]:
     if not candidates:
         return recommend_popular(user_id, top_k, state)
 
-    # Build genre profile from training history
-    user_train = state.train[state.train["user_id"] == user_id]
-    rated = list(zip(user_train["movie_id"], user_train["rating"]))
-    genre_profile = _genre_profile_from_ratings(rated, state)
+    # Build genre profile from precomputed content model profiles
+    profile_vec = state.cb._user_profiles.get(user_id)
+    if profile_vec is not None:
+        genre_profile = {
+            g: float(profile_vec[i])
+            for i, g in enumerate(state.cb._mlb.classes_)
+            if profile_vec[i] > 0
+        }
+    else:
+        genre_profile = {}
 
     rows = [
         _build_feature_row(user_id, mid, cf_recs.get(mid, 0.0), cb_recs.get(mid, 0.0),
