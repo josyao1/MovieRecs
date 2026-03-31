@@ -2,8 +2,13 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: 'http://localhost:8000' })
 
-export const getMovies  = (page=1, genre=null) =>
-  api.get('/movies', { params: { page, page_size: 100, ...(genre ? { genre } : {}) } })
+export const getMovies  = (page=1, genre=null, yearMin=null, yearMax=null) =>
+  api.get('/movies', { params: {
+    page, page_size: 100,
+    ...(genre   ? { genre }              : {}),
+    ...(yearMin ? { year_min: yearMin }  : {}),
+    ...(yearMax ? { year_max: yearMax }  : {}),
+  } })
 
 export const onboard    = (ratings) => api.post('/onboard', { ratings })
 

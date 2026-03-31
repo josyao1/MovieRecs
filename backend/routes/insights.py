@@ -201,10 +201,12 @@ def list_movies(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     genre: Optional[str] = None,
+    year_min: Optional[int] = None,
+    year_max: Optional[int] = None,
 ):
     """
     Paginated movie list for the onboarding picker.
-    Optionally filter by genre. Ordered by popularity (most rated first).
+    Optionally filter by genre and/or year range. Ordered by popularity (most rated first).
     """
     from backend.model_loader import state
 
@@ -220,6 +222,11 @@ def list_movies(
         if not info:
             continue
         if genre and genre.lower() not in [g.lower() for g in info["genres"]]:
+            continue
+        year = info.get("year")
+        if year_min is not None and (year is None or year < year_min):
+            continue
+        if year_max is not None and (year is None or year > year_max):
             continue
         stats = state.item_stats.loc[mid]
         results.append({

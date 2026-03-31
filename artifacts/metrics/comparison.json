@@ -2,139 +2,63 @@
   "models": {
     "popularity": {
       "overall": {
-        "precision@10": 0.04087878269789708,
-        "recall@10": 0.04463636608312638,
-        "ndcg@10": 0.051974718472817094,
-        "n_users_evaluated": 5849
+        "precision@10": 0.0158,
+        "recall@10": 0.03113824532190125,
+        "ndcg@10": 0.025345932763807137,
+        "n_users_evaluated": 5000
       },
-      "segments": {
-        "cold": {
-          "precision@10": 0.015065185900531146,
-          "recall@10": 0.046531466280379845,
-          "ndcg@10": 0.033073931132395984,
-          "n_users_evaluated": 2071
-        },
-        "warm": {
-          "precision@10": 0.039641045649629336,
-          "recall@10": 0.04461774368624045,
-          "ndcg@10": 0.04785321803909883,
-          "n_users_evaluated": 2563
-        },
-        "hot": {
-          "precision@10": 0.08748971193415638,
-          "recall@10": 0.04144540039975739,
-          "ndcg@10": 0.09288577706839904,
-          "n_users_evaluated": 1215
-        }
-      },
-      "popularity_bias": 0.9994,
-      "genre_diversity": 0.3371510692620304
+      "segments": {},
+      "popularity_bias": 1.0,
+      "genre_diversity": 0.0
     },
-    "collaborative_filtering": {
+    "collaborative_filter": {
       "overall": {
-        "precision@10": 0.028825440246195936,
-        "recall@10": 0.05197420802268464,
-        "ndcg@10": 0.04331710945853898,
-        "n_users_evaluated": 5849
+        "precision@10": 0.02986,
+        "recall@10": 0.06328736699598003,
+        "ndcg@10": 0.04883149748839299,
+        "n_users_evaluated": 5000
       },
-      "segments": {
-        "cold": {
-          "precision@10": 0.026170931916948335,
-          "recall@10": 0.0889494378147203,
-          "ndcg@10": 0.05917702912612055,
-          "n_users_evaluated": 2071
-        },
-        "warm": {
-          "precision@10": 0.02575107296137339,
-          "recall@10": 0.03675547644914013,
-          "ndcg@10": 0.03210969980781833,
-          "n_users_evaluated": 2563
-        },
-        "hot": {
-          "precision@10": 0.03983539094650206,
-          "recall@10": 0.021052321704733007,
-          "ndcg@10": 0.03992509077807442,
-          "n_users_evaluated": 1215
-        }
-      },
-      "popularity_bias": 0.3216,
-      "genre_diversity": 0.3872111349736845
+      "segments": {},
+      "popularity_bias": 0.256,
+      "genre_diversity": 0.0
     },
     "content_based": {
       "overall": {
-        "precision@10": 0.008548469823901521,
-        "recall@10": 0.014867807613968281,
-        "ndcg@10": 0.012814716736652182,
-        "n_users_evaluated": 5849
+        "precision@10": 0.00064,
+        "recall@10": 0.0010527728237972184,
+        "ndcg@10": 0.0008477520160947916,
+        "n_users_evaluated": 5000
       },
-      "segments": {
-        "cold": {
-          "precision@10": 0.0064703042008691465,
-          "recall@10": 0.021143454967694465,
-          "ndcg@10": 0.013907102842269379,
-          "n_users_evaluated": 2071
-        },
-        "warm": {
-          "precision@10": 0.009364026531408505,
-          "recall@10": 0.013771036598496546,
-          "ndcg@10": 0.012724183291196269,
-          "n_users_evaluated": 2563
-        },
-        "hot": {
-          "precision@10": 0.010370370370370372,
-          "recall@10": 0.0064843989251510996,
-          "ndcg@10": 0.011143692535804689,
-          "n_users_evaluated": 1215
-        }
-      },
-      "popularity_bias": 0.0952,
-      "genre_diversity": 0.19273160640774706
+      "segments": {},
+      "popularity_bias": 0.005,
+      "genre_diversity": 0.0
     },
     "hybrid_reranker": {
       "overall": {
-        "precision@10": 0.03752778252692768,
-        "recall@10": 0.06207142989912291,
-        "ndcg@10": 0.05415384820553271,
-        "n_users_evaluated": 5849
+        "precision@10": 0.033,
+        "recall@10": 0.06300240072476836,
+        "ndcg@10": 0.05175758871115204,
+        "n_users_evaluated": 5000
       },
-      "segments": {
-        "cold": {
-          "precision@10": 0.028392081120231775,
-          "recall@10": 0.09719022326458346,
-          "ndcg@10": 0.06278351708242683,
-          "n_users_evaluated": 2071
-        },
-        "warm": {
-          "precision@10": 0.03718298868513461,
-          "recall@10": 0.04891996712638153,
-          "ndcg@10": 0.04566716658997239,
-          "n_users_evaluated": 2563
-        },
-        "hot": {
-          "precision@10": 0.053827160493827166,
-          "recall@10": 0.029953057904610423,
-          "ndcg@10": 0.05734670477889353,
-          "n_users_evaluated": 1215
-        }
-      },
-      "popularity_bias": 0.497,
-      "genre_diversity": 0.38671145654001043
+      "segments": {},
+      "popularity_bias": 0.348,
+      "genre_diversity": 0.0
     }
   },
   "feature_importance": {
-    "cf_score": 1842,
-    "content_score": 563,
-    "pop_score": 904,
-    "avg_rating": 1174,
-    "rating_count": 799,
-    "genre_overlap": 1900,
-    "user_interaction_count": 1818
+    "genre_overlap": 1270,
+    "cf_score": 1193,
+    "user_interaction_count": 1155,
+    "avg_rating": 895,
+    "pop_score": 671,
+    "rating_count": 613,
+    "content_score": 203
   },
-  "failure_rate": 0.491,
   "dataset_stats": {
-    "n_users": 6040,
-    "n_movies": 3667,
-    "n_ratings_train": 797758,
-    "sparsity": 0.9639816910082226
-  }
+    "n_users": 162541,
+    "n_movies": 62423,
+    "n_ratings_train": 19936012,
+    "sparsity": 0.998
+  },
+  "failure_rate": 0.747
 }

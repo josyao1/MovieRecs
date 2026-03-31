@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell
@@ -6,10 +6,88 @@ import {
 import { getInsights } from '../lib/api'
 
 const MODEL_COLORS = {
-  'Popularity':              '#7a7268',
-  'Collaborative Filtering': '#4f8ef7',
-  'Content Based':           '#2dd4bf',
-  'Hybrid Reranker':         '#c8963e',
+  'Popularity':          '#7a7268',
+  'Collaborative Filter':'#4f8ef7',
+  'Content Based':       '#2dd4bf',
+  'Hybrid Reranker':     '#c8963e',
+}
+
+const COLUMN_TIPS = {
+  'Model': null,
+  'P@10':      'Precision@10 — of the 10 movies recommended, what fraction did the user actually like? Higher = fewer irrelevant results.',
+  'R@10':      'Recall@10 — of all movies the user liked in the test set, what fraction appeared in the top 10? Higher = fewer missed relevant items.',
+  'NDCG@10':   'Normalized Discounted Cumulative Gain@10 — measures both relevance and ranking quality. Rewards putting the best movies highest. Ranges 0→1.',
+  'Pop. Bias': 'Popularity Bias — fraction of recommendations that are top-100 globally popular films. Lower means the model personalizes more and avoids always recommending blockbusters.',
+  'Diversity': 'Genre Diversity — number of unique genres across all recommendations divided by total recs. Higher means the model surfaces a wider variety of content.',
+}
+
+const MODEL_TIPS = {
+  'Popularity':          'Recommends the most-rated and highest-rated movies globally. No personalization — everyone gets the same list. Surprisingly hard to beat on precision.',
+  'Collaborative Filter':'Matrix factorization (ALS) — learns 64-dimensional latent embeddings for each user and movie from rating patterns. "Users like you also liked…"',
+  'Content Based':       'Builds a genre preference profile from your ratings and finds movies with similar genre vectors. Struggles because 18 binary genre dimensions are too coarse to distinguish taste.',
+  'Hybrid Reranker':     'Two-stage pipeline: CF + content-based generate 100 candidates, then a LightGBM LambdaRank model reranks them using 7 engineered features. Optimizes NDCG directly.',
+}
+
+// Inline tooltip component
+function Tip({ text, children }) {
+  const [visible, setVisible] = useState(false)
+  const [pos, setPos]         = useState({ top: 0, left: 0 })
+  const ref                   = useRef()
+
+  if (!text) return <>{children}</>
+
+  const show = (e) => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (rect) {
+      setPos({
+        top:  rect.bottom + 8,
+        left: Math.min(rect.left, window.innerWidth - 320),
+      })
+    }
+    setVisible(true)
+  }
+
+  return (
+    <span ref={ref} style={{ position: 'relative', cursor: 'help' }}
+      onMouseEnter={show} onMouseLeave={() => setVisible(false)}>
+      {children}
+      <span style={{
+        display: 'inline-block',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '0.55rem',
+        color: 'var(--muted)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: '50%',
+        width: '13px', height: '13px',
+        lineHeight: '13px',
+        textAlign: 'center',
+        marginLeft: '5px',
+        verticalAlign: 'middle',
+        userSelect: 'none',
+      }}>?</span>
+      {visible && (
+        <span style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          zIndex: 999,
+          width: '300px',
+          background: 'var(--surface2)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: '3px',
+          padding: '10px 13px',
+          fontFamily: 'var(--font-body)',
+          fontStyle: 'normal',
+          fontWeight: 300,
+          fontSize: '0.78rem',
+          color: 'var(--text)',
+          lineHeight: 1.6,
+          pointerEvents: 'none',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+        }}>{text}</span>
+      )}
+    </span>
+  )
 }
 
 function getBest(table, key, higher = true) {
@@ -171,7 +249,9 @@ export default function Insights() {
                       fontWeight: 400,
                       fontSize: '0.65rem',
                       letterSpacing: '0.04em',
-                    }}>{h}</th>
+                    }}>
+                      <Tip text={COLUMN_TIPS[h]}>{h}</Tip>
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -189,7 +269,7 @@ export default function Insights() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color, flexShrink: 0 }} />
                           <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 600, fontSize: '0.9rem' }}>
-                            {row.model}
+                            <Tip text={MODEL_TIPS[row.model]}>{row.model}</Tip>
                           </span>
                         </div>
                       </td>

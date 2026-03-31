@@ -1,31 +1,37 @@
 """
-Fetch TMDB poster URLs for all MovieLens 1M movies.
+Fetch TMDB poster URLs for all movies in the dataset.
 
-Searches TMDB by cleaned title + year. Saves a mapping of
-{movie_id: poster_url} to artifacts/posters.json.
+Saves {movie_id: poster_url} to artifacts/posters.json.
+Resumes automatically from an existing checkpoint.
 
 Run from project root:
     python scripts/fetch_posters.py
+    python scripts/fetch_posters.py --workers 20   # more parallelism
 
 Requires: TMDB_READ_ACCESS_TOKEN in .env
 """
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import re
+import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import pandas as pd
 import requests
 from dotenv import load_dotenv
-import os
-
-load_dotenv()
 
 ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT))
+load_dotenv(ROOT / ".env")
+
 POSTERS_PATH = ROOT / "artifacts" / "posters.json"
-TMDB_BASE = "https://api.themoviedb.org/3"
-POSTER_BASE = "https://image.tmdb.org/t/p/w500"
+TMDB_BASE    = "https://api.themoviedb.org/3"
+POSTER_BASE  = "https://image.tmdb.org/t/p/w500"
 
 TOKEN = os.getenv("TMDB_READ_ACCESS_TOKEN")
 if not TOKEN:
@@ -35,80 +41,102 @@ HEADERS = {"Authorization": f"Bearer {TOKEN}"}
 
 
 def clean_title(raw: str) -> str:
-    """Strip year and trailing articles moved to end, e.g. 'Matrix, The (1999)' -> 'The Matrix'."""
+    """'Matrix, The (1999)' → 'The Matrix'"""
     title = re.sub(r"\s*\(\d{4}\)\s*$", "", raw).strip()
-    # Handle "Title, The" → "The Title"
     title = re.sub(r"^(.*),\s*(The|A|An|Les|Le|La|L')$", r"\2 \1", title, flags=re.IGNORECASE)
     return title
 
 
-def search_tmdb(title: str, year: int | None) -> str | None:
+def fetch_one(movie_id: int, title: str, year: int | None) -> tuple[int, str | None]:
+    """Fetch poster URL for one movie. Returns (movie_id, url_or_None)."""
     params = {"query": title, "include_adult": False}
     if year:
         params["year"] = year
-    r = requests.get(f"{TMDB_BASE}/search/movie", headers=HEADERS, params=params, timeout=10)
-    if r.status_code != 200:
-        return None
-    results = r.json().get("results", [])
-    if not results:
-        # Retry without year constraint
-        if year:
-            return search_tmdb(title, None)
-        return None
-    poster = results[0].get("poster_path")
-    return f"{POSTER_BASE}{poster}" if poster else None
+
+    try:
+        r = requests.get(f"{TMDB_BASE}/search/movie", headers=HEADERS,
+                         params=params, timeout=10)
+        r.raise_for_status()
+        results = r.json().get("results", [])
+        if not results and year:
+            # Retry without year constraint
+            r2 = requests.get(f"{TMDB_BASE}/search/movie", headers=HEADERS,
+                              params={"query": title, "include_adult": False}, timeout=10)
+            r2.raise_for_status()
+            results = r2.json().get("results", [])
+        poster = results[0].get("poster_path") if results else None
+        return movie_id, (f"{POSTER_BASE}{poster}" if poster else None)
+    except Exception:
+        return movie_id, None
 
 
-def main():
-    import sys
-    sys.path.insert(0, str(ROOT))
+def main(workers: int = 10) -> None:
     from src.preprocessing.data_loader import load_movies
     movies = load_movies()
 
-    # Load existing cache if any
+    # Load existing checkpoint
     if POSTERS_PATH.exists():
         with open(POSTERS_PATH) as f:
             posters: dict[str, str | None] = json.load(f)
-        print(f"Resuming — {len(posters)} already cached")
+        print(f"Resuming — {len(posters):,} already cached")
     else:
         posters = {}
 
-    total = len(movies)
-    found = 0
-    skipped = 0
+    # Build work queue — movies not yet fetched
+    todo = [
+        (int(r.movie_id), clean_title(r.title),
+         int(r.year) if pd.notna(r.year) else None)
+        for r in movies.itertuples()
+        if str(r.movie_id) not in posters
+    ]
 
-    for i, row in enumerate(movies.itertuples(), 1):
-        mid = str(row.movie_id)
-        if mid in posters:
-            skipped += 1
-            continue
+    if not todo:
+        total_found = sum(1 for v in posters.values() if v)
+        print(f"All done — {total_found:,}/{len(posters):,} posters in cache.")
+        return
 
-        title = clean_title(row.title)
-        year = int(row.year) if row.year and not str(row.year) == "<NA>" else None
+    total   = len(todo) + len(posters)
+    found   = sum(1 for v in posters.values() if v)
+    done    = len(posters)
+    save_every = max(100, workers * 5)
 
-        url = search_tmdb(title, year)
-        posters[mid] = url
-        if url:
-            found += 1
+    print(f"Fetching {len(todo):,} remaining movies with {workers} workers …")
+    start = time.time()
 
-        if i % 100 == 0:
-            # Save checkpoint
-            with open(POSTERS_PATH, "w") as f:
-                json.dump(posters, f)
-            pct = (i + skipped) / total * 100
-            print(f"  {i + skipped}/{total} ({pct:.0f}%) — found {found + sum(1 for v in posters.values() if v)} posters")
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(fetch_one, mid, title, year): mid
+                   for mid, title, year in todo}
 
-        # Respect TMDB rate limit (~40 req/s; stay conservative)
-        time.sleep(0.05)
+        for i, future in enumerate(as_completed(futures), 1):
+            mid, url = future.result()
+            posters[str(mid)] = url
+            if url:
+                found += 1
+            done += 1
+
+            if i % save_every == 0:
+                with open(POSTERS_PATH, "w") as f:
+                    json.dump(posters, f)
+                elapsed = time.time() - start
+                rate    = i / elapsed
+                eta     = (len(todo) - i) / rate
+                pct     = done / total * 100
+                print(f"  {done:,}/{total:,} ({pct:.0f}%) — "
+                      f"{found:,} posters — {rate:.0f} req/s — ETA {eta/60:.1f} min")
 
     # Final save
     with open(POSTERS_PATH, "w") as f:
         json.dump(posters, f)
 
     total_found = sum(1 for v in posters.values() if v)
-    print(f"\nDone: {total_found}/{total} posters found ({total_found/total*100:.1f}%)")
-    print(f"Saved to {POSTERS_PATH}")
+    elapsed = time.time() - start
+    print(f"\nDone in {elapsed/60:.1f} min — "
+          f"{total_found:,}/{total:,} posters ({total_found/total*100:.1f}%)")
+    print(f"Saved → {POSTERS_PATH}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--workers", type=int, default=10,
+                        help="Parallel TMDB requests (default 10, max ~40)")
+    main(workers=parser.parse_args().workers)

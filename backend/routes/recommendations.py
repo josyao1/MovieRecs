@@ -37,6 +37,7 @@ class RecommendationItem(BaseModel):
     title: str
     year: Optional[int]
     genres: list[str]
+    poster_url: Optional[str] = None
     score: float
     explanation: str
 
