@@ -43,6 +43,7 @@ def evaluate_model(
     recommendations: dict[int, list[int]],
     test_interactions: dict[int, set[int]],
     k: int = 10,
+    user_train_counts: dict[int, int] | None = None,
 ) -> dict[str, float]:
     """Evaluate a model's recommendations against test interactions.
 
@@ -50,26 +51,56 @@ def evaluate_model(
         recommendations: {user_id: [movie_id, ...]} sorted by predicted relevance
         test_interactions: {user_id: {movie_id, ...}} ground truth
         k: cutoff
+        user_train_counts: optional {user_id: n_train_ratings} for cold/warm/hot breakdown
 
     Returns:
-        dict with precision@k, recall@k, ndcg@k (macro-averaged over users)
+        dict with precision@k, recall@k, ndcg@k (macro-averaged over users),
+        and optionally a 'segments' key with cold/warm/hot breakdowns.
     """
     precisions, recalls, ndcgs = [], [], []
+    seg_buckets: dict[str, dict[str, list]] = {
+        "cold": {"p": [], "r": [], "n": []},
+        "warm": {"p": [], "r": [], "n": []},
+        "hot":  {"p": [], "r": [], "n": []},
+    }
 
     for user_id, relevant in test_interactions.items():
         if user_id not in recommendations:
             continue
         recs = recommendations[user_id]
-        precisions.append(precision_at_k(recs, relevant, k))
-        recalls.append(recall_at_k(recs, relevant, k))
-        ndcgs.append(ndcg_at_k(recs, relevant, k))
+        p = precision_at_k(recs, relevant, k)
+        r = recall_at_k(recs, relevant, k)
+        n = ndcg_at_k(recs, relevant, k)
+        precisions.append(p)
+        recalls.append(r)
+        ndcgs.append(n)
 
-    return {
+        if user_train_counts is not None:
+            count = user_train_counts.get(user_id, 0)
+            seg = "cold" if count < 20 else ("warm" if count < 100 else "hot")
+            seg_buckets[seg]["p"].append(p)
+            seg_buckets[seg]["r"].append(r)
+            seg_buckets[seg]["n"].append(n)
+
+    result: dict = {
         f"precision@{k}": float(np.mean(precisions)),
-        f"recall@{k}": float(np.mean(recalls)),
-        f"ndcg@{k}": float(np.mean(ndcgs)),
+        f"recall@{k}":    float(np.mean(recalls)),
+        f"ndcg@{k}":      float(np.mean(ndcgs)),
         "n_users_evaluated": len(precisions),
     }
+
+    if user_train_counts is not None:
+        result["segments"] = {
+            seg: {
+                f"precision@{k}": float(np.mean(v["p"])) if v["p"] else 0.0,
+                f"recall@{k}":    float(np.mean(v["r"])) if v["r"] else 0.0,
+                f"ndcg@{k}":      float(np.mean(v["n"])) if v["n"] else 0.0,
+                "n_users":        len(v["p"]),
+            }
+            for seg, v in seg_buckets.items()
+        }
+
+    return result
 
 
 def build_test_lookup(test_df, min_rating: float = 4.0) -> dict[int, set[int]]:
