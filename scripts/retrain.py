@@ -49,7 +49,7 @@ def timed(label: str):
     return _ctx()
 
 
-def main(skip_cf: bool = False):
+def main(skip_cf: bool = False, skip_content: bool = False):
     from src.preprocessing.data_loader import load_ratings, load_movies
     from src.preprocessing.splitter import split, save_splits
     from src.models.popularity import PopularityModel
@@ -106,6 +106,8 @@ def main(skip_cf: bool = False):
         print("\n── Skipping CF (--skip-cf set, loading existing model) ──")
         with open(cf_pkl, "rb") as f:
             cf = pickle.load(f)
+        if not getattr(cf, "_user_seen", None):
+            cf._user_seen = train.groupby("user_id")["movie_id"].apply(set).to_dict()
         cf_recs = {}
         for uid in eval_lookup:
             try:
@@ -131,16 +133,14 @@ def main(skip_cf: bool = False):
             pickle.dump(cf, f)
 
     # ── 4. Content-based ──────────────────────────────────────────────────────
-    with timed("Content-based (sentence embeddings)"):
-        descriptions_path = ROOT / "data" / "processed" / "movie_descriptions.csv"
-        if descriptions_path.exists():
-            descriptions = pd.read_csv(descriptions_path)
-            print(f"   Loaded {len(descriptions):,} descriptions")
-        else:
-            descriptions = None
-            print("   No descriptions file found — using title+genre only")
-        cb = ContentBasedModel()
-        cb.fit(train, movies, descriptions=descriptions)
+    cb_pkl = ARTIFACTS / "models" / "content_model.pkl"
+    if skip_content and cb_pkl.exists():
+        print("\n── Skipping content encoding (--skip-content set, loading existing model) ──")
+        with open(cb_pkl, "rb") as f:
+            cb = pickle.load(f)
+        # Restore _user_seen stripped by slim_models
+        if not getattr(cb, "_user_seen", None):
+            cb._user_seen = train.groupby("user_id")["movie_id"].apply(set).to_dict()
         cb_recs = {}
         for uid in eval_lookup:
             try:
@@ -149,9 +149,28 @@ def main(skip_cf: bool = False):
                 cb_recs[uid] = []
         results["content_based"] = evaluate_model(cb_recs, eval_lookup, k=10)
         print(f"   NDCG@10: {results['content_based']['ndcg@10']:.4f}")
+    else:
+        with timed("Content-based (sentence embeddings)"):
+            descriptions_path = ROOT / "data" / "processed" / "movie_descriptions.csv"
+            if descriptions_path.exists():
+                descriptions = pd.read_csv(descriptions_path)
+                print(f"   Loaded {len(descriptions):,} descriptions")
+            else:
+                descriptions = None
+                print("   No descriptions file found — using title+genre only")
+            cb = ContentBasedModel()
+            cb.fit(train, movies, descriptions=descriptions)
+            cb_recs = {}
+            for uid in eval_lookup:
+                try:
+                    cb_recs[uid] = [m for m, _ in cb.recommend(uid, 10)]
+                except Exception:
+                    cb_recs[uid] = []
+            results["content_based"] = evaluate_model(cb_recs, eval_lookup, k=10)
+            print(f"   NDCG@10: {results['content_based']['ndcg@10']:.4f}")
 
-    with open(ARTIFACTS / "models" / "content_model.pkl", "wb") as f:
-        pickle.dump(cb, f)
+        with open(cb_pkl, "wb") as f:
+            pickle.dump(cb, f)
 
     # ── 5. Hybrid reranker ────────────────────────────────────────────────────
     with timed("Hybrid reranker (LightGBM LambdaRank)"):
@@ -252,5 +271,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-cf", action="store_true",
                         help="Skip CF training and reuse existing cf_model.pkl")
+    parser.add_argument("--skip-content", action="store_true",
+                        help="Skip content encoding and reuse existing content_model.pkl")
     args = parser.parse_args()
-    main(skip_cf=args.skip_cf)
+    main(skip_cf=args.skip_cf, skip_content=args.skip_content)

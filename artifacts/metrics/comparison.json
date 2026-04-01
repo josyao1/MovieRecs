@@ -13,46 +13,46 @@
     },
     "collaborative_filter": {
       "overall": {
-        "precision@10": 0.02986,
-        "recall@10": 0.06328736699598003,
-        "ndcg@10": 0.04883149748839299,
+        "precision@10": 0.029620000000000004,
+        "recall@10": 0.06441998880949898,
+        "ndcg@10": 0.04836537813730168,
         "n_users_evaluated": 5000
       },
       "segments": {},
-      "popularity_bias": 0.256,
+      "popularity_bias": 0.254,
       "genre_diversity": 0.0
     },
     "content_based": {
       "overall": {
-        "precision@10": 0.00064,
-        "recall@10": 0.0010527728237972184,
-        "ndcg@10": 0.0008477520160947916,
+        "precision@10": 0.00056,
+        "recall@10": 0.0010836334749834567,
+        "ndcg@10": 0.0009372963299741283,
         "n_users_evaluated": 5000
       },
       "segments": {},
-      "popularity_bias": 0.005,
+      "popularity_bias": 0.001,
       "genre_diversity": 0.0
     },
     "hybrid_reranker": {
       "overall": {
-        "precision@10": 0.033,
-        "recall@10": 0.06300240072476836,
-        "ndcg@10": 0.05175758871115204,
+        "precision@10": 0.036860000000000004,
+        "recall@10": 0.07521345056245898,
+        "ndcg@10": 0.05957011575119727,
         "n_users_evaluated": 5000
       },
       "segments": {},
-      "popularity_bias": 0.348,
+      "popularity_bias": 0.419,
       "genre_diversity": 0.0
     }
   },
   "feature_importance": {
-    "genre_overlap": 1270,
-    "cf_score": 1193,
-    "user_interaction_count": 1155,
-    "avg_rating": 895,
-    "pop_score": 671,
-    "rating_count": 613,
-    "content_score": 203
+    "cf_score": 1198,
+    "genre_overlap": 1133,
+    "content_score": 995,
+    "user_interaction_count": 927,
+    "avg_rating": 739,
+    "pop_score": 548,
+    "rating_count": 460
   },
   "dataset_stats": {
     "n_users": 162541,
@@ -60,5 +60,5 @@
     "n_ratings_train": 19936012,
     "sparsity": 0.998
   },
-  "failure_rate": 0.747
+  "failure_rate": 0.715
 }

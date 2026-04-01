@@ -22,10 +22,10 @@ const COLUMN_TIPS = {
 }
 
 const MODEL_TIPS = {
-  'Popularity':          'Recommends the most-rated and highest-rated movies globally. No personalization — everyone gets the same list. Surprisingly hard to beat on precision.',
+  'Popularity':          'Recommends the most-rated and highest-rated movies globally. No personalization — everyone gets the same list.',
   'Collaborative Filter':'Matrix factorization (ALS) — learns 64-dimensional latent embeddings for each user and movie from rating patterns. "Users like you also liked…"',
-  'Content Based':       'Encodes each movie\'s title, genres, and plot overview into a 384-dim sentence embedding (all-MiniLM-L6-v2). Your profile = average of liked movie vectors. Finds semantically similar movies regardless of genre label.',
-  'Hybrid Reranker':     'Two-stage pipeline: CF + content-based generate 100 candidates, then a LightGBM LambdaRank model reranks them using 7 engineered features. Optimizes NDCG directly.',
+  'Content Based':       'Encodes each movie\'s title, genres, and TMDB plot overview into a 384-dim sentence embedding (all-MiniLM-L6-v2). Your profile = average of liked movie vectors. Finds semantically similar movies, but very noisy standalone across 62K items.',
+  'Hybrid Reranker':     'Two-stage pipeline: CF generates 50 candidates, then a LightGBM LambdaRank reranker scores them on 7 features (cf_score, genre_overlap, content_score, user_interaction_count, avg_rating, pop_score, rating_count). Directly optimizes NDCG.',
 }
 
 // Inline tooltip component
@@ -169,7 +169,7 @@ export default function Insights() {
         maxWidth: '900px',
       }}>
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '1.5rem' }}>
-          ml experiment · phase 7 results
+          ml experiment · final results
         </p>
         <h1 style={{
           fontFamily: 'var(--font-display)',
@@ -317,7 +317,7 @@ export default function Insights() {
         </div>
 
         {/* ── FEATURE IMPORTANCE ── */}
-        <Section title="Reranker Feature Importance" note="what LightGBM learned from 300 gradient-boosted trees">
+        <Section title="Reranker Feature Importance" note="what LightGBM learned from 200 gradient-boosted trees">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             {feature_importance.map((f, i) => (
               <div key={f.feature} className="fade-up" style={{

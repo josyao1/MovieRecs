@@ -149,6 +149,21 @@ class ContentBasedModel:
         ]
         return ranked[:top_k]
 
+    def score_items(self, user_id: int, movie_ids: list[int]) -> dict[int, float]:
+        """Return content similarity scores for a specific list of movies.
+
+        Unlike recommend(), does not filter seen items — caller ensures candidates
+        are unseen. Returns 0.0 for any movie not in the index.
+        """
+        profile = self._user_profiles.get(user_id)
+        if profile is None:
+            return {mid: 0.0 for mid in movie_ids}
+        return {
+            mid: float(self._item_vectors[self._item_index[mid]].dot(profile))
+            if mid in self._item_index else 0.0
+            for mid in movie_ids
+        }
+
     def save(self, path: Path | None = None) -> None:
         path = path or (ARTIFACTS_DIR / "models" / "content_model.pkl")
         path.parent.mkdir(parents=True, exist_ok=True)

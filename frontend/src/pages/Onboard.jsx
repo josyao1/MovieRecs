@@ -31,6 +31,7 @@ export default function Onboard() {
   const [searching, setSearching]     = useState(false)
   const [loading, setLoading]         = useState(true)
   const [submitting, setSubmit]       = useState(false)
+  const [compact, setCompact]         = useState(false)
   const searchTimeout                 = useRef(null)
   const navigate = useNavigate()
 
@@ -238,15 +239,18 @@ export default function Onboard() {
               mono
             />
           ))}
+          <span style={{ width: '1px', height: '18px', background: 'var(--border-strong)', margin: '0 0.25rem' }} />
+          <CompactToggle compact={compact} onToggle={() => setCompact(c => !c)} />
         </div>
       )}
 
-      {/* Search results count */}
+      {/* Search results count + compact toggle in search mode */}
       {isSearchMode && !searching && (
-        <div style={{ padding: '0.6rem 2.5rem', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ padding: '0.6rem 2.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--muted)' }}>
             {searchResults.length} results for "{searchQuery}"
           </span>
+          <CompactToggle compact={compact} onToggle={() => setCompact(c => !c)} />
         </div>
       )}
 
@@ -254,22 +258,30 @@ export default function Onboard() {
       <div style={{
         padding: '1.5rem 2.5rem 6rem',
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+        gridTemplateColumns: compact ? 'repeat(auto-fill, minmax(120px, 1fr))' : 'repeat(auto-fill, minmax(160px, 1fr))',
         gap: '12px',
         maxWidth: '1400px',
         margin: '0 auto',
       }}>
         {isLoading
           ? Array.from({ length: 24 }).map((_, i) => (
-              <div key={i} className="shimmer" style={{ height: '280px', borderRadius: '4px' }} />
+              <div key={i} className="shimmer" style={{ height: compact ? '60px' : '280px', borderRadius: '4px' }} />
             ))
           : visibleMovies.map((m, i) => (
               <div key={m.movie_id} className="fade-up" style={{ animationDelay: `${Math.min(i * 0.015, 0.3)}s`, opacity: 0 }}>
-                <MovieCard
-                  movie={m}
-                  selected={!!selected[m.movie_id]}
-                  onSelect={toggleSelect}
-                />
+                {compact ? (
+                  <CompactMovieItem
+                    movie={m}
+                    selected={!!selected[m.movie_id]}
+                    onClick={() => toggleSelect(m)}
+                  />
+                ) : (
+                  <MovieCard
+                    movie={m}
+                    selected={!!selected[m.movie_id]}
+                    onSelect={toggleSelect}
+                  />
+                )}
               </div>
             ))
         }
@@ -369,6 +381,94 @@ function PaginationBtn({ children, active, disabled, onClick }) {
         transition: 'all 0.12s',
       }}
     >{children}</button>
+  )
+}
+
+function CompactToggle({ compact, onToggle }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={compact ? 'Switch to card view' : 'Switch to compact view'}
+      style={{
+        padding: '4px 9px',
+        borderRadius: '2px',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '0.75rem',
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        border: compact ? '1px solid var(--amber)' : '1px solid var(--border)',
+        background: compact ? 'rgba(200,150,62,0.07)' : 'transparent',
+        color: compact ? 'var(--amber)' : 'var(--muted)',
+        lineHeight: 1,
+        display: 'flex', alignItems: 'center', gap: '4px',
+      }}
+    >
+      {compact ? (
+        // list icon
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="1" y="2" width="3" height="3" rx="0.5" />
+          <rect x="1" y="7" width="3" height="3" rx="0.5" />
+          <line x1="6" y1="3.5" x2="11" y2="3.5" />
+          <line x1="6" y1="8.5" x2="11" y2="8.5" />
+        </svg>
+      ) : (
+        // grid icon
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="1" y="1" width="4" height="4" rx="0.5" />
+          <rect x="7" y="1" width="4" height="4" rx="0.5" />
+          <rect x="1" y="7" width="4" height="4" rx="0.5" />
+          <rect x="7" y="7" width="4" height="4" rx="0.5" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
+function CompactMovieItem({ movie, selected, onClick }) {
+  const borderColor = getGenreColor((movie.genres || [])[0])
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        padding: '8px 10px',
+        borderRadius: '3px',
+        background: selected ? 'var(--surface)' : 'transparent',
+        border: selected ? `1px solid ${borderColor}` : '1px solid var(--border)',
+        borderLeft: `3px solid ${borderColor}`,
+        cursor: 'pointer',
+        transition: 'all 0.12s',
+        minHeight: '52px',
+        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+      }}
+    >
+      <p style={{
+        fontFamily: 'var(--font-body)',
+        fontSize: '0.72rem',
+        fontWeight: 500,
+        color: 'var(--text)',
+        lineHeight: 1.3,
+        marginBottom: '2px',
+        display: '-webkit-box',
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: 'vertical',
+        overflow: 'hidden',
+        paddingRight: selected ? '16px' : '0',
+      }}>{movie.title}</p>
+      {movie.year && (
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'var(--muted)', lineHeight: 1 }}>
+          {movie.year}
+        </p>
+      )}
+      {selected && (
+        <span style={{
+          position: 'absolute', top: '6px', right: '7px',
+          fontFamily: 'var(--font-mono)', fontSize: '0.6rem',
+          color: borderColor,
+          lineHeight: 1,
+        }}>✓</span>
+      )}
+    </div>
   )
 }
 

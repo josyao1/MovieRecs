@@ -115,21 +115,30 @@ class HybridReranker:
         )
 
         X_rows, y_rows, groups = [], [], []
-        sample_users = train["user_id"].unique()[:2000]  # cap for training speed
+        rng = np.random.default_rng(42)
+        all_users = train["user_id"].unique()
+        sample_users = rng.choice(all_users, min(5000, len(all_users)), replace=False)
+
+        # Precompute genre profiles for all sample users in one pass (avoids 20M-row scan per user)
+        user_genre_profiles: dict = {}
+        sample_set = set(sample_users.tolist())
+        for uid, group in train[train["user_id"].isin(sample_set)].groupby("user_id"):
+            genres = [g for m in group["movie_id"] for g in self._genre_lookup.get(m, set())]
+            if genres:
+                counts = pd.Series(genres).value_counts(normalize=True).to_dict()
+                user_genre_profiles[uid] = counts
 
         for user_id in sample_users:
             cf_recs = dict(self._cf.recommend(user_id, CANDIDATE_K))
-            cb_recs = dict(self._cb.recommend(user_id, CANDIDATE_K))
-            candidates = list(set(cf_recs) | set(cb_recs))
-            if not candidates:
+            if not cf_recs:
                 continue
+            # Use CF candidates only — content candidates are niche movies that
+            # don't appear in val/test, adding noise that hurts reranker training.
+            # Content scores are still computed for CF candidates as a feature.
+            candidates = list(cf_recs.keys())
+            cb_recs = self._cb.score_items(user_id, candidates)
 
-            # User genre profile
-            seen_genres = [
-                g for m in train[train["user_id"] == user_id]["movie_id"]
-                for g in self._genre_lookup.get(m, set())
-            ]
-            genre_counts = pd.Series(seen_genres).value_counts(normalize=True).to_dict()
+            genre_counts = user_genre_profiles.get(user_id, {})
 
             features = self._build_features(user_id, candidates, cf_recs, cb_recs, genre_counts)
             labels = [1 if (user_id, m) in val_positive else 0 for m in candidates]
@@ -154,13 +163,14 @@ class HybridReranker:
 
     def recommend(self, user_id: int, top_k: int = 10) -> list[tuple[int, float]]:
         cf_recs = dict(self._cf.recommend(user_id, CANDIDATE_K))
-        cb_recs = dict(self._cb.recommend(user_id, CANDIDATE_K))
-        candidates = list(set(cf_recs) | set(cb_recs))
 
-        if not candidates:
+        if not cf_recs:
             return self._pop.recommend(user_id, top_k)
 
-        genre_counts: dict[str, float] = {}
+        candidates = list(cf_recs.keys())
+        cb_recs = self._cb.score_items(user_id, candidates)
+
+        genre_counts = self._cb._user_genre_profiles.get(user_id, {})
         features = self._build_features(user_id, candidates, cf_recs, cb_recs, genre_counts)
         scores = self._ranker.predict(features)
 

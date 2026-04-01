@@ -422,6 +422,17 @@ function RateableCard({ movie, onRate, rated }) {
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--muted)' }}>
           {movie.year || ''}
         </p>
+        {movie.explanation && (
+          <p style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.55rem',
+            color: getExplanationStyle(movie.explanation).color,
+            marginTop: '3px',
+            lineHeight: 1.4,
+          }}>
+            {movie.explanation}
+          </p>
+        )}
       </div>
     </div>
   )

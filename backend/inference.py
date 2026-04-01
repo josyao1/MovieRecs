@@ -53,11 +53,15 @@ def _genre_profile_from_ratings(
 def recommend_for_known_user(user_id: int, top_k: int, state) -> list[dict]:
     """Full hybrid pipeline for a user already in the CF model."""
     cf_recs = dict(state.cf.recommend(user_id, CANDIDATE_K))
-    cb_recs = dict(state.cb.recommend(user_id, CANDIDATE_K))
-    candidates = list(set(cf_recs) | set(cb_recs))
 
-    if not candidates:
+    if not cf_recs:
         return recommend_popular(user_id, top_k, state)
+
+    # CF-only candidates — content candidates are niche movies that don't appear
+    # in user histories, so they only add noise. Content scores are still computed
+    # for the CF candidates as a reranking feature.
+    candidates = list(cf_recs.keys())
+    cb_recs = state.cb.score_items(user_id, candidates)
 
     # Genre profile for genre_overlap feature — stored separately from embedding profile
     genre_profile = state.cb._user_genre_profiles.get(user_id, {})
@@ -110,14 +114,15 @@ def recommend_for_session_user(
         if mid not in seen and mid not in dict(top_cb)
     ][:CANDIDATE_K]
 
-    candidates = dict(top_cb + pop_fallback)
+    cb_score_map = dict(top_cb)
+    candidates = list(cb_score_map) + [mid for mid, _ in pop_fallback if mid not in cb_score_map]
 
     rows = [
-        _build_feature_row("session", mid, 0.0, candidates[mid], genre_profile, state)
+        _build_feature_row("session", mid, 0.0, cb_score_map.get(mid, 0.0), genre_profile, state)
         for mid in candidates
     ]
     scores = state.ranker.predict(pd.DataFrame(rows))
-    ranked = sorted(zip(candidates.keys(), scores), key=lambda x: -x[1])
+    ranked = sorted(zip(candidates, scores), key=lambda x: -x[1])
 
     return _format_results(ranked[:top_k], {}, dict(top_cb), genre_profile, state)
 

@@ -66,61 +66,65 @@ def insights():
 
     key_findings = [
         {
-            "title": "Hybrid reranker wins on recall and NDCG",
+            "title": "Hybrid reranker beats CF by 23% on NDCG",
             "detail": (
-                "The hybrid model achieves the best R@10 (0.062) and NDCG@10 (0.054) "
-                "across all four models. By combining CF candidate generation with a "
-                "LightGBM reranker trained on engineered features, it surfaces more "
-                "relevant items and ranks them better than any single model alone."
+                "The hybrid model achieves the best NDCG@10 (0.060), R@10 (0.075), and P@10 (0.037) "
+                "across all four models — a 23% NDCG improvement over CF alone (0.048). "
+                "By using CF to generate 50 candidates and then reranking with LightGBM on 7 "
+                "engineered features, it surfaces more relevant items and orders them better "
+                "than any single approach."
             ),
         },
         {
-            "title": "Popularity baseline is harder to beat than expected",
+            "title": "Content-based model is near-useless standalone — but critical as a feature",
             "detail": (
-                "The simple popularity baseline (count × avg_rating) achieved P@10=0.041 "
-                "and NDCG=0.052 — outperforming CF on both metrics. This is a well-known "
-                "phenomenon: popular items have broad appeal, so recommending them is a "
-                "safe strategy even without any personalization."
+                "Standalone, the content model scores NDCG=0.001 — essentially random. "
+                "Sentence embeddings encode semantic similarity well, but user profiles built "
+                "from a handful of liked movies are too noisy to produce reliable rankings "
+                "across 62K items. However, content_score is the 3rd most important reranker "
+                "feature (importance 995), meaning it adds signal when combined with CF candidates "
+                "and genre overlap rather than running alone."
             ),
         },
         {
-            "title": "Sentence embeddings replaced genre flags in the content model",
+            "title": "CF score is the reranker's strongest signal",
             "detail": (
-                "The original genre-only content model (18 binary dimensions) produced NDCG=0.013 "
-                "standalone — two movies tagged 'Drama' looked identical even if one was a "
-                "dark war film and the other a rom-com. The model was upgraded to encode each "
-                "movie's title + genres + TMDB plot overview with all-MiniLM-L6-v2 (384 dimensions), "
-                "producing semantically meaningful item vectors. Genre overlap remains a separate "
-                "feature in the hybrid reranker and is still the single most important signal."
+                "Despite being trained as a LambdaRank model over 7 features, the reranker "
+                "assigned cf_score the highest importance (1198), confirming that ALS latent "
+                "embeddings capture the most reliable preference signal. Genre overlap came "
+                "second (1133), acting as an interpretable proxy for user taste. Together they "
+                "account for 46% of total feature importance."
             ),
         },
         {
             "title": "Accuracy vs diversity tradeoff confirmed empirically",
             "detail": (
-                "The hybrid reranker achieved better accuracy metrics (NDCG) than CF, "
-                "but increased popularity bias from 32.2% to 49.7%. The reranker learned "
-                "that avg_rating and pop_score are strong predictors of relevance — "
-                "which is correct — but this amplifies the tendency to over-recommend "
+                "The hybrid reranker's NDCG gains come partly at the cost of diversity: "
+                "popularity bias increased from 25.4% (CF) to 41.9% (hybrid). The reranker "
+                "learned that avg_rating and pop_score are strong relevance predictors — "
+                "which is statistically true — but this amplifies the tendency to over-recommend "
                 "widely popular films at the expense of niche discoveries."
             ),
         },
         {
-            "title": "49% failure rate — the honest number",
+            "title": "71.5% failure rate — the honest number",
             "detail": (
-                "In nearly half of users, no model placed any relevant item in the top 10. "
-                "The aggregate NDCG of 0.054 is pulled up by users where models work well. "
-                "Root causes: small test sets (3-6 items per user), strict ≥4.0 relevance "
-                "threshold, and temporal drift — user tastes at test time had shifted from "
-                "the training signal."
+                "In nearly three quarters of users, no model placed any relevant item in the "
+                "top 10. The aggregate NDCG of 0.060 is pulled up by the minority of users "
+                "where models work well. Root causes: small per-user test sets (3-6 items), "
+                "strict ≥4.0 relevance threshold, and temporal drift — test interactions "
+                "were held out chronologically, so user tastes at test time had shifted "
+                "from the training signal."
             ),
         },
         {
-            "title": "user_interaction_count as implicit calibration",
+            "title": "user_interaction_count as implicit confidence calibration",
             "detail": (
-                "The reranker assigned the 3rd highest importance to user_interaction_count. "
-                "This means it learned that CF scores are more trustworthy for active users "
-                "who have richer, better-trained embeddings. For sparse users, the reranker "
-                "relies more on genre overlap and popularity signals instead."
+                "The reranker assigned 4th-highest importance to user_interaction_count. "
+                "This means it learned to trust CF scores more for active users who have "
+                "richer, better-trained ALS embeddings. For sparse users, the reranker "
+                "downweights cf_score and leans more on genre overlap and global popularity "
+                "signals — an emergent behavior from the training data, not an explicit rule."
             ),
         },
     ]
@@ -130,20 +134,20 @@ def insights():
             "axis_a": "Personalization",
             "axis_b": "Popularity bias",
             "observation": (
-                "CF personalizes more than popularity (32.2% vs 99.9% popularity bias) "
+                "CF personalizes strongly (25.4% popularity bias vs 100% for the baseline) "
                 "but the hybrid reranker's accuracy gains come partly from re-learning "
-                "popularity patterns. Better personalization may require explicit "
-                "de-biasing techniques during training."
+                "popularity patterns (41.9% bias). Achieving better NDCG without increasing "
+                "popularity bias would require explicit de-biasing during reranker training."
             ),
         },
         {
             "axis_a": "Recall",
             "axis_b": "Precision",
             "observation": (
-                "CF improves recall over popularity (0.052 vs 0.045) but loses on "
-                "precision (0.029 vs 0.041). The hybrid reranker partially reconciles "
-                "this: it retains CF's broad recall while improving ordering quality. "
-                "But some precision is still traded for recall."
+                "CF improves recall over popularity (0.064 vs 0.031) and also improves "
+                "precision (0.030 vs 0.016). The hybrid reranker improves both further "
+                "(P=0.037, R=0.075). This is unusually clean — the reranker found a way "
+                "to improve ordering quality without the typical recall-precision tradeoff."
             ),
         },
         {
@@ -151,19 +155,32 @@ def insights():
             "axis_b": "Interpretability",
             "observation": (
                 "The simplest model (popularity) is fully interpretable but useless "
-                "for personalization. The most complex model (hybrid reranker) is still "
-                "partially interpretable via feature importance. Deeper neural rerankers "
-                "would trade away that interpretability."
+                "for personalization. The hybrid reranker is still partially interpretable "
+                "via feature importance — we can explain why a movie was ranked highly. "
+                "Replacing LightGBM with a deep neural reranker would likely improve NDCG "
+                "but would make per-recommendation explanations much harder."
+            ),
+        },
+        {
+            "axis_a": "Semantic similarity",
+            "axis_b": "Collaborative signal",
+            "observation": (
+                "Content embeddings (all-MiniLM-L6-v2) capture plot and genre semantics "
+                "but perform poorly standalone — too much noise across 62K items. "
+                "ALS collaborative filtering exploits collective user behavior but can't "
+                "generalize to items with no ratings. The hybrid gets the best of both: "
+                "CF generates high-quality candidates, content scores refine them."
             ),
         },
     ]
 
     future_work = [
-        "Session-based modeling: transformer over recent interaction sequences (BERT4Rec)",
-        "Neural two-tower reranker: replace LightGBM with a deep model for user-item interactions",
-        "Online learning: incremental embedding updates from new interactions without full retrain",
-        "Explicit diversity constraints: enforce genre diversity in final ranked list",
-        "A/B testing framework: compare models on live traffic rather than offline metrics",
+        "Session-based modeling: transformer over recent interaction sequences (BERT4Rec / SASRec)",
+        "Neural two-tower reranker: replace LightGBM with a deep cross-attention model for user-item interactions",
+        "Online learning: incremental ALS embedding updates from new interactions without full retrain",
+        "Explicit diversity re-ranking: MMR or DPP post-processing to enforce genre variety in the final top-10",
+        "De-biasing during reranker training: IPS weighting to correct for popularity-driven label noise",
+        "A/B testing framework: compare models on live user traffic rather than offline held-out metrics",
     ]
 
     return {
