@@ -49,7 +49,7 @@ def timed(label: str):
     return _ctx()
 
 
-def main():
+def main(skip_cf: bool = False):
     from src.preprocessing.data_loader import load_ratings, load_movies
     from src.preprocessing.splitter import split, save_splits
     from src.models.popularity import PopularityModel
@@ -101,9 +101,11 @@ def main():
         pickle.dump(pop, f)
 
     # ── 3. Collaborative filtering ────────────────────────────────────────────
-    with timed("Collaborative filtering (ALS)"):
-        cf = CollaborativeFilterModel(factors=64, iterations=20, regularization=0.01)
-        cf.fit(train)
+    cf_pkl = ARTIFACTS / "models" / "cf_model.pkl"
+    if skip_cf and cf_pkl.exists():
+        print("\n── Skipping CF (--skip-cf set, loading existing model) ──")
+        with open(cf_pkl, "rb") as f:
+            cf = pickle.load(f)
         cf_recs = {}
         for uid in eval_lookup:
             try:
@@ -112,14 +114,33 @@ def main():
                 cf_recs[uid] = []
         results["collaborative_filter"] = evaluate_model(cf_recs, eval_lookup, k=10)
         print(f"   NDCG@10: {results['collaborative_filter']['ndcg@10']:.4f}")
+    else:
+        with timed("Collaborative filtering (ALS)"):
+            cf = CollaborativeFilterModel(factors=64, iterations=20, regularization=0.01)
+            cf.fit(train)
+            cf_recs = {}
+            for uid in eval_lookup:
+                try:
+                    cf_recs[uid] = [m for m, _ in cf.recommend(uid, 10)]
+                except Exception:
+                    cf_recs[uid] = []
+            results["collaborative_filter"] = evaluate_model(cf_recs, eval_lookup, k=10)
+            print(f"   NDCG@10: {results['collaborative_filter']['ndcg@10']:.4f}")
 
-    with open(ARTIFACTS / "models" / "cf_model.pkl", "wb") as f:
-        pickle.dump(cf, f)
+        with open(cf_pkl, "wb") as f:
+            pickle.dump(cf, f)
 
     # ── 4. Content-based ──────────────────────────────────────────────────────
-    with timed("Content-based"):
+    with timed("Content-based (sentence embeddings)"):
+        descriptions_path = ROOT / "data" / "processed" / "movie_descriptions.csv"
+        if descriptions_path.exists():
+            descriptions = pd.read_csv(descriptions_path)
+            print(f"   Loaded {len(descriptions):,} descriptions")
+        else:
+            descriptions = None
+            print("   No descriptions file found — using title+genre only")
         cb = ContentBasedModel()
-        cb.fit(train, movies)
+        cb.fit(train, movies, descriptions=descriptions)
         cb_recs = {}
         for uid in eval_lookup:
             try:
@@ -227,4 +248,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--skip-cf", action="store_true",
+                        help="Skip CF training and reuse existing cf_model.pkl")
+    args = parser.parse_args()
+    main(skip_cf=args.skip_cf)

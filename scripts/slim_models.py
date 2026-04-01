@@ -73,13 +73,19 @@ def main():
         if not hasattr(cb, "_user_profiles") or not cb._user_profiles:
             print("  Precomputing user profiles…")
             from src.models.content_based import POSITIVE_THRESHOLD
+            import scipy.sparse as sp
             pos = cb._train[cb._train["rating"] >= POSITIVE_THRESHOLD]
             cb._user_profiles = {}
             for user_id, group in pos.groupby("user_id"):
                 indices = [cb._item_index[m] for m in group["movie_id"] if m in cb._item_index]
                 if not indices:
                     continue
-                profile = np.asarray(cb._item_vectors[indices].mean(axis=0)).flatten()
+                vecs = cb._item_vectors[indices]
+                # Support both sparse (old genre model) and dense (new embedding model)
+                if sp.issparse(vecs):
+                    profile = np.asarray(vecs.mean(axis=0)).flatten()
+                else:
+                    profile = vecs.mean(axis=0)
                 norm = np.linalg.norm(profile)
                 cb._user_profiles[user_id] = profile / norm if norm > 0 else profile
             print(f"  Precomputed {len(cb._user_profiles):,} user profiles")

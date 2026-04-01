@@ -84,14 +84,14 @@ def insights():
             ),
         },
         {
-            "title": "Content-based model failed standalone — but contributed as a feature",
+            "title": "Sentence embeddings replaced genre flags in the content model",
             "detail": (
-                "Genre-only content features produced the weakest standalone model (NDCG=0.013). "
-                "18 binary genre dimensions cannot distinguish users who like the same genres "
-                "but with different tastes within them. However, the genre_overlap feature "
-                "derived from the same content model was the single most important feature "
-                "in the hybrid reranker — showing that weak standalone models can still "
-                "contribute valuable signals to ensembles."
+                "The original genre-only content model (18 binary dimensions) produced NDCG=0.013 "
+                "standalone — two movies tagged 'Drama' looked identical even if one was a "
+                "dark war film and the other a rom-com. The model was upgraded to encode each "
+                "movie's title + genres + TMDB plot overview with all-MiniLM-L6-v2 (384 dimensions), "
+                "producing semantically meaningful item vectors. Genre overlap remains a separate "
+                "feature in the hybrid reranker and is still the single most important signal."
             ),
         },
         {
@@ -159,7 +159,6 @@ def insights():
     ]
 
     future_work = [
-        "Richer content features: sentence embeddings from movie descriptions (e.g. all-MiniLM-L6-v2)",
         "Session-based modeling: transformer over recent interaction sequences (BERT4Rec)",
         "Neural two-tower reranker: replace LightGBM with a deep model for user-item interactions",
         "Online learning: incremental embedding updates from new interactions without full retrain",

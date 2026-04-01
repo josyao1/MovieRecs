@@ -24,7 +24,7 @@ const COLUMN_TIPS = {
 const MODEL_TIPS = {
   'Popularity':          'Recommends the most-rated and highest-rated movies globally. No personalization — everyone gets the same list. Surprisingly hard to beat on precision.',
   'Collaborative Filter':'Matrix factorization (ALS) — learns 64-dimensional latent embeddings for each user and movie from rating patterns. "Users like you also liked…"',
-  'Content Based':       'Builds a genre preference profile from your ratings and finds movies with similar genre vectors. Struggles because 18 binary genre dimensions are too coarse to distinguish taste.',
+  'Content Based':       'Encodes each movie\'s title, genres, and plot overview into a 384-dim sentence embedding (all-MiniLM-L6-v2). Your profile = average of liked movie vectors. Finds semantically similar movies regardless of genre label.',
   'Hybrid Reranker':     'Two-stage pipeline: CF + content-based generate 100 candidates, then a LightGBM LambdaRank model reranks them using 7 engineered features. Optimizes NDCG directly.',
 }
 
@@ -191,7 +191,7 @@ export default function Insights() {
           lineHeight: 1.75,
           fontWeight: 300,
         }}>
-          Four recommendation models — trained, evaluated, and compared on MovieLens 1M.
+          Four recommendation models — trained, evaluated, and compared on MovieLens 25M.
           The goal: understand where each model succeeds, where it fails, and why hybrid
           reranking outperforms any single approach.
         </p>

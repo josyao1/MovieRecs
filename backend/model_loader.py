@@ -104,6 +104,9 @@ class AppState:
             self.cb = pickle.load(f)
         if not getattr(self.cb, "_user_seen", None):
             self.cb._user_seen = user_seen
+        # Old genre-based models don't have _user_genre_profiles — provide empty fallback
+        if not hasattr(self.cb, "_user_genre_profiles"):
+            self.cb._user_genre_profiles = {}
 
         with open(ROOT / "artifacts/models/reranker.pkl", "rb") as f:
             rd = pickle.load(f)

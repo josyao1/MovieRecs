@@ -59,16 +59,8 @@ def recommend_for_known_user(user_id: int, top_k: int, state) -> list[dict]:
     if not candidates:
         return recommend_popular(user_id, top_k, state)
 
-    # Build genre profile from precomputed content model profiles
-    profile_vec = state.cb._user_profiles.get(user_id)
-    if profile_vec is not None:
-        genre_profile = {
-            g: float(profile_vec[i])
-            for i, g in enumerate(state.cb._mlb.classes_)
-            if profile_vec[i] > 0
-        }
-    else:
-        genre_profile = {}
+    # Genre profile for genre_overlap feature — stored separately from embedding profile
+    genre_profile = state.cb._user_genre_profiles.get(user_id, {})
 
     rows = [
         _build_feature_row(user_id, mid, cf_recs.get(mid, 0.0), cb_recs.get(mid, 0.0),
@@ -91,17 +83,21 @@ def recommend_for_session_user(
     genre_profile = _genre_profile_from_ratings(session_ratings, state)
     seen = {mid for mid, _ in session_ratings}
 
-    # Candidate pool: content-based scores over all movies
+    # Candidate pool: content-based scores over all movies.
+    # For session users we don't have a precomputed profile, so we build one on
+    # the fly by averaging the sentence-embedding vectors of liked movies.
     cb_scores: dict[int, float] = {}
-    if genre_profile:
-        profile_vec = np.array([
-            genre_profile.get(g, 0.0)
-            for g in state.cb._mlb.classes_
-        ], dtype=float)
-        norm = np.linalg.norm(profile_vec)
+    liked_indices = [
+        state.cb._item_index[mid]
+        for mid, r in session_ratings
+        if r >= POSITIVE_THRESHOLD and mid in state.cb._item_index
+    ]
+    if liked_indices:
+        session_vec = state.cb._item_vectors[liked_indices].mean(axis=0)
+        norm = np.linalg.norm(session_vec)
         if norm > 0:
-            profile_vec /= norm
-        raw_scores = state.cb._item_vectors.dot(profile_vec)
+            session_vec = session_vec / norm
+        raw_scores = state.cb._item_vectors.dot(session_vec)
         for i, score in enumerate(raw_scores):
             mid = state.cb._index_item.get(i)
             if mid and mid not in seen:
