@@ -133,6 +133,36 @@ class AppState:
         else:
             self.posters = {}
 
+        # --- Semantic search: query encoder + description lookup + filter mask ---
+        from sentence_transformers import SentenceTransformer
+        from src.models.content_based import EMBED_MODEL
+
+        self.query_encoder = SentenceTransformer(EMBED_MODEL)
+        print(f"  Query encoder loaded: {EMBED_MODEL}")
+
+        desc_path = ROOT / "data/processed/movie_descriptions.csv"
+        if desc_path.exists():
+            desc_df = pd.read_csv(desc_path)
+            self.description_lookup: dict[int, str] = {
+                int(r.movie_id): (
+                    r.description
+                    if isinstance(r.description, str) and len(r.description) >= 50
+                    else ""
+                )
+                for r in desc_df.itertuples()
+            }
+        else:
+            self.description_lookup = {}
+            print("  movie_descriptions.csv not found — semantic search disabled")
+
+        # Boolean mask over the item vector matrix — True = eligible for semantic search
+        n_items = len(self.cb._item_index)
+        self.semantic_mask = np.zeros(n_items, dtype=bool)
+        for movie_id, row_idx in self.cb._item_index.items():
+            if self.description_lookup.get(movie_id, ""):
+                self.semantic_mask[row_idx] = True
+        print(f"  Semantic search: {self.semantic_mask.sum():,} eligible movies")
+
         # --- Session store ---
         self.sessions: dict[str, list[tuple[int, float]]] = {}
 

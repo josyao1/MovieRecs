@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Pre-download the sentence transformer model weights at build time.
+# Avoids a 30s cold-start download on every Space restart.
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
 # HuggingFace Spaces serves on port 7860
 ENV PORT=7860
 EXPOSE 7860
