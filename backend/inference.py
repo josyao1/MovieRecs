@@ -153,7 +153,7 @@ def _format_results(
     return results
 
 
-def semantic_search(query_vec: np.ndarray, top_k: int, state) -> list[dict]:
+def semantic_search(query_vec: np.ndarray, top_k: int, state, year_min: int = None) -> list[dict]:
     """
     Cosine similarity search against the precomputed item embedding matrix.
     Only returns movies with descriptions >= 50 chars (enforced by semantic_mask).
@@ -174,6 +174,8 @@ def semantic_search(query_vec: np.ndarray, top_k: int, state) -> list[dict]:
             continue
         info = state.movie_lookup.get(movie_id)
         if not info:
+            continue
+        if year_min and (info.get("year") is None or info["year"] < year_min):
             continue
         description = state.description_lookup.get(movie_id, "")
         snippet = description[:200] + "…" if len(description) > 200 else description

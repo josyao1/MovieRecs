@@ -21,8 +21,8 @@ export const getUserRecs = (userId, topK=20) =>
 export const searchMovies = (q, userId=null, sessionId=null) =>
   api.get('/search', { params: { q, ...(userId ? { user_id: userId } : {}), ...(sessionId ? { session_id: sessionId } : {}), top_k: 20 } })
 
-export const semanticSearchMovies = (q, topK = 10) =>
-  api.get('/semantic-search', { params: { q, top_k: topK } })
+export const semanticSearchMovies = (q, topK = 10, yearMin = null) =>
+  api.get('/semantic-search', { params: { q, top_k: topK, ...(yearMin ? { year_min: yearMin } : {}) } })
 
 export const getInsights = () => api.get('/insights')
 export const getItem     = (id) => api.get(`/item/${id}`)

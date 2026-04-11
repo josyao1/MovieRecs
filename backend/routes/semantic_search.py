@@ -20,6 +20,7 @@ router = APIRouter()
 def semantic_search_endpoint(
     q: str = Query(..., min_length=1, max_length=500),
     top_k: int = Query(default=10, ge=1, le=50),
+    year_min: int = Query(default=None),
 ):
     from backend.model_loader import state
     from backend.inference import semantic_search
@@ -30,4 +31,4 @@ def semantic_search_endpoint(
         convert_to_numpy=True,
         show_progress_bar=False,
     )
-    return semantic_search(query_vec, top_k=top_k, state=state)
+    return semantic_search(query_vec, top_k=top_k, state=state, year_min=year_min)

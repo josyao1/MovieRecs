@@ -134,11 +134,14 @@ class AppState:
             self.posters = {}
 
         # --- Semantic search: query encoder + description lookup + filter mask ---
-        from sentence_transformers import SentenceTransformer
-        from src.models.content_based import EMBED_MODEL
-
-        self.query_encoder = SentenceTransformer(EMBED_MODEL)
-        print(f"  Query encoder loaded: {EMBED_MODEL}")
+        try:
+            from sentence_transformers import SentenceTransformer
+            from src.models.content_based import EMBED_MODEL
+            self.query_encoder = SentenceTransformer(EMBED_MODEL)
+            print(f"  Query encoder loaded: {EMBED_MODEL}")
+        except Exception as e:
+            self.query_encoder = None
+            print(f"  Query encoder failed to load ({e}) — semantic search disabled")
 
         desc_path = ROOT / "data/processed/movie_descriptions.csv"
         if desc_path.exists():
