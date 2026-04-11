@@ -28,6 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.routes.recommendations import router as rec_router
 from backend.routes.search import router as search_router
 from backend.routes.insights import router as insights_router
+from backend.routes.semantic_search import router as semantic_search_router
 
 app = FastAPI(
     title="Hybrid Recommendation & Ranking Platform",
@@ -41,7 +42,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://movie-recs-jet.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -49,6 +50,7 @@ app.add_middleware(
 app.include_router(rec_router, tags=["Recommendations"])
 app.include_router(search_router, tags=["Search"])
 app.include_router(insights_router, tags=["Insights & Metadata"])
+app.include_router(semantic_search_router, tags=["Semantic Search"])
 
 
 @app.get("/health", tags=["Health"])

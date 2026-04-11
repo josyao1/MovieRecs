@@ -153,6 +153,39 @@ def _format_results(
     return results
 
 
+def semantic_search(query_vec: np.ndarray, top_k: int, state) -> list[dict]:
+    """
+    Cosine similarity search against the precomputed item embedding matrix.
+    Only returns movies with descriptions >= 50 chars (enforced by semantic_mask).
+    query_vec must already be L2-normalized (shape: [384,]).
+    """
+    scores = state.cb._item_vectors.dot(query_vec)
+    masked = scores * state.semantic_mask  # zeroes ineligible rows
+
+    # argpartition is O(n) — faster than full argsort for large n
+    k = min(top_k, len(masked))
+    top_indices = np.argpartition(-masked, k)[:k]
+    top_indices = top_indices[np.argsort(-masked[top_indices])]
+
+    results = []
+    for row_idx in top_indices:
+        movie_id = state.cb._index_item.get(row_idx)
+        if movie_id is None:
+            continue
+        info = state.movie_lookup.get(movie_id)
+        if not info:
+            continue
+        description = state.description_lookup.get(movie_id, "")
+        snippet = description[:200] + "…" if len(description) > 200 else description
+        results.append({
+            **info,
+            "poster_url": state.posters.get(movie_id),
+            "similarity_score": round(float(masked[row_idx]), 4),
+            "description_snippet": snippet,
+        })
+    return results
+
+
 def _explain(
     movie_id: int,
     cf_scores: dict[int, float],
