@@ -8,6 +8,7 @@ export default function Search() {
   const [loading, setLoading]   = useState(false)
   const [personalized, setPersonalized] = useState(true)
   const [mode, setMode]         = useState('keyword') // 'keyword' | 'semantic'
+  const [post2000, setPost2000] = useState(false)
   const [focused, setFocused]   = useState(false)
   const [searched, setSearched] = useState(false)
   const inputRef = useRef()
@@ -19,7 +20,7 @@ export default function Search() {
     try {
       let r
       if (overrideMode === 'semantic') {
-        r = await semanticSearchMovies(q, 20)
+        r = await semanticSearchMovies(q, 20, post2000 ? 2000 : null)
       } else {
         const sessionId = personalized ? localStorage.getItem('reclab_session_id') : null
         r = await searchMovies(q, null, sessionId)
@@ -147,9 +148,26 @@ export default function Search() {
           </div>
         )}
         {mode === 'semantic' && (
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--muted)', marginTop: '1.25rem' }}>
-            describe themes, not titles — ranked by semantic similarity
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '1.25rem' }}>
+            <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--muted)', margin: 0 }}>
+              describe themes, not titles — ranked by semantic similarity
+            </p>
+            <button
+              onClick={() => { setPost2000(p => !p); if (searched) handleSearch(query, mode) }}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.65rem',
+                padding: '3px 10px',
+                border: `1px solid ${post2000 ? 'var(--amber)' : 'var(--border-strong)'}`,
+                borderRadius: '3px',
+                background: post2000 ? 'var(--amber)' : 'transparent',
+                color: post2000 ? '#0e0c0a' : 'var(--muted)',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+              }}
+            >2000+</button>
+          </div>
         )}
       </div>
 
